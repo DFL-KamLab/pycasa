@@ -1,0 +1,66 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and coverage artifacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local temp/output folders
+tmp/
+temp/
+outputs/
+artifacts/
+runs/
+logs/
+*.log
+
+# Large data/media artifacts
+*.avi
+*.mp4
+*.mov
+*.mkv
+*.flv
+*.wmv
+*.csv
+*.tsv
+*.parquet
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+
+# Model/weights artifacts
+*.pt
+*.pth
+*.onnx
+*.weights
+

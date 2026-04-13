@@ -1,0 +1,19 @@
+"""Tracking namespace for trajectory generation from detections.
+
+Purpose:
+    Convert detection/groundtruth streams into per-track trajectories.
+
+Inputs:
+    A ``Casa`` session with detections and tracking parameters.
+
+Outputs:
+    Track dictionaries under ``casa['tracks']`` and ``meta['last_tracking']``
+    run metadata.
+
+Methods:
+    - ``sort(...)``
+"""
+
+from ._sort import sort
+
+__all__ = ["sort"]

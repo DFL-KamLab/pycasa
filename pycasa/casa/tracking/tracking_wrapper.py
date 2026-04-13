@@ -1,0 +1,70 @@
+class _SessionTrackingNamespace:
+    def __init__(self, session: "Casa") -> None:
+        """Initialize the tracking namespace for a ``Casa`` session."""
+        self._session = session
+
+    def sort(
+        self,
+        skip_gt: bool = False,
+        delete_temp: bool = True,
+        max_age: int = 25,
+        min_hits: int = 3,
+        iou_threshold: float = 0.1,
+        *,
+        show_progress: bool = True,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Track detections using SORT and store tracks in session state.
+
+        Parameters:
+            skip_gt (bool, optional):
+                If ``False`` (default), run SORT on both available sources:
+                ``groundtruth`` and active predicted detections. If ``True``,
+                run detections-only and skip groundtruth.
+            delete_temp (bool, optional):
+                Legacy compatibility flag. No temporary files are created in
+                this in-process implementation.
+            max_age (int, optional):
+                Maximum number of missed frames before dropping a track.
+            min_hits (int, optional):
+                Minimum associated detections before a track is emitted.
+            iou_threshold (float, optional):
+                Minimum IoU threshold for assignment.
+            show_progress (bool, optional):
+                If ``True``, show the shared pycasa progress bar while running
+                per-frame tracking.
+            verbose (bool, optional):
+                If ``True``, print concise runtime start/end summaries.
+
+        Returns:
+            Casa:
+                The same fluent ``Casa`` session instance.
+
+        Raises:
+            ValueError:
+                If tracking cannot resolve frame geometry from metadata or the
+                loaded video array.
+            ImportError:
+                If SciPy is unavailable when Hungarian assignment is needed.
+
+        Notes:
+            Writes per-source tracks to ``casa['tracks']['sort'][source]`` and
+            stores invocation metadata in ``casa['meta']['last_tracking']``.
+
+        Examples:
+            >>> session = session.tracking.sort(skip_gt=False)
+        """
+        from ...tracking import sort
+
+        return self._session._sync_from(
+            sort(
+                self._session._as_dict(),
+                skip_gt=skip_gt,
+                delete_temp=delete_temp,
+                max_age=max_age,
+                min_hits=min_hits,
+                iou_threshold=iou_threshold,
+                show_progress=show_progress,
+                verbose=verbose,
+            )
+        )
