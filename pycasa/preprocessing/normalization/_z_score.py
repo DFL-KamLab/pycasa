@@ -47,7 +47,7 @@ def z_score(
         - Updates ``casa["meta"]["last_preprocessing"]`` with method metadata.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data(download=False)
         >>> session = session.preprocessing.normalization.z_score(overwrite=False)
     """

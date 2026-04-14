@@ -213,7 +213,7 @@ def _associate_detections_to_trackers(
 
 
 class _SortTracker:
-    """SORT tracker implementation used by ``pycasa_as.tracking.sort``."""
+    """SORT tracker implementation used by ``pycasa.tracking.sort``."""
 
     def __init__(self, max_age: int = 1, min_hits: int = 3, iou_threshold: float = 0.3) -> None:
         self.max_age = int(max_age)
@@ -455,7 +455,7 @@ def sort(
         - ``casa['meta']['last_tracking']`` is always updated.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.Casa()
         >>> session = session.tracking.sort(skip_gt=False)
     """

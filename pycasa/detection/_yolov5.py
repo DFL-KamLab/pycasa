@@ -253,7 +253,7 @@ def _find_local_yolov5_repo() -> str:
     raise FileNotFoundError(
         "These YOLO weights are standard YOLOv5 checkpoints, not TorchScript archives. "
         "Clone YOLOv5 with `git clone https://github.com/ultralytics/yolov5.git` "
-        "next to the `pycasa_as` repo so it resolves as `../yolov5`, or set "
+        "next to the `pycasa` repo so it resolves as `../yolov5`, or set "
         "`PYCASA_YOLOV5_REPO` to an existing local clone."
     )
 

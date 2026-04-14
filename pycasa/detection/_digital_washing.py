@@ -432,7 +432,7 @@ def digital_washing(
         - ``casa["meta"]["last_detection"]`` is always updated.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data()
         >>> session = session.detection.digital_washing(show_progress=False)
     """

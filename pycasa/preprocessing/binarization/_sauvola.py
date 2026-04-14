@@ -60,7 +60,7 @@ def sauvola(
         - Updates ``casa["meta"]["last_preprocessing"]``.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data(download=False)
         >>> session = session.preprocessing.binarization.sauvola(window_size=25, k=0.2, r=128.0)
     """

@@ -1,4 +1,4 @@
-"""Internal core building blocks for the pycasa_as session contract."""
+"""Internal core building blocks for the pycasa session contract."""
 
 from ._casa import _REQUIRED_TOP_LEVEL_KEYS
 from ._casa import _ensure_casa

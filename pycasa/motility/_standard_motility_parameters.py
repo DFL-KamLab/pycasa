@@ -346,7 +346,7 @@ def standard_motility_parameters(
           source.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data()
         >>> session = session.tracking.sort(skip_gt=False)
         >>> session = session.set_um_per_px(0.24)

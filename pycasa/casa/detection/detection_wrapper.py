@@ -24,7 +24,7 @@ class _SessionDetectionNamespace:
                 If ``True``, print concise runtime start/end summaries.
             **kwargs:
                 Method-specific controls forwarded unchanged to
-                :func:`pycasa_as.detection.detect_moving_cells`.
+                :func:`pycasa.detection.detect_moving_cells`.
 
         Returns:
             Casa:

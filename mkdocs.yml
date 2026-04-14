@@ -1,0 +1,11 @@
+site_name: pycasa
+site_description: Python toolkit for computer-assisted semen analysis workflows.
+site_url: https://dfl-kamlab.github.io/pycasa/
+repo_url: https://github.com/DFL-KamLab/pycasa
+repo_name: DFL-KamLab/pycasa
+
+theme:
+  name: mkdocs
+
+nav:
+  - Introduction: index.md

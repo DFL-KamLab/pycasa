@@ -57,7 +57,7 @@ def adaptive_mean(
         - Updates ``casa["meta"]["last_preprocessing"]``.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data(download=False)
         >>> session = session.preprocessing.binarization.adaptive_mean(block_size=11, c=2.0)
     """

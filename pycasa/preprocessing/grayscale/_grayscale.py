@@ -43,7 +43,7 @@ def grayscale(
         - Updates ``casa["meta"]["last_preprocessing"]`` with operation metadata.
 
     Examples:
-        >>> import pycasa_as as pc
+        >>> import pycasa as pc
         >>> session = pc.io.load_default_data(download=False)
         >>> session = session.preprocessing.grayscale(overwrite=False)
     """
