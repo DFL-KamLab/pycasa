@@ -5,7 +5,31 @@ repo_url: https://github.com/DFL-KamLab/pycasa
 repo_name: DFL-KamLab/pycasa
 
 theme:
-  name: mkdocs
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
 
 nav:
-  - Introduction: index.md
+  - Getting Started:
+    - Introduction: index.md
+    - Setup & Requirements: getting-started/setup.md
+    - Quickstart: getting-started/quickstart.md
+  - Examples:
+    - Default Data + Otsu + YOLO: examples/default-data-otsu-yolo.md
+    - Load Custom Video: examples/custom-video.md
+    - Detection + SORT Tracking: examples/detection-tracking.md
+    - Motility + Assessment: examples/motility-assessment.md
+  - API Guide:
+    - Casa Session Model: api/casa-session.md
+    - I/O: api/io.md
+    - Preprocessing: api/preprocessing.md
+    - Detection: api/detection.md
+    - Tracking: api/tracking.md
+    - Motility: api/motility.md
+    - Assessment: api/assessment.md
+    - Visualization: api/visualization.md
+  - Project:
+    - Package Architecture: project/architecture.md
+    - Troubleshooting: project/troubleshooting.md
