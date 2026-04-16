@@ -6,10 +6,45 @@ repo_name: DFL-KamLab/pycasa
 
 theme:
   name: material
+  logo: assets/pycasa_logo.png
+  favicon: assets/pycasa_logo.png
+  palette:
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
-    - navigation.sections
-    - navigation.expand
+    - navigation.top
+    - search.highlight
     - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Getting Started:
@@ -33,3 +68,4 @@ nav:
   - Project:
     - Package Architecture: project/architecture.md
     - Troubleshooting: project/troubleshooting.md
+    - Contributors: project/contributors.md
