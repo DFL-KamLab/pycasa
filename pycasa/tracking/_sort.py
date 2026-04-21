@@ -461,11 +461,7 @@ def sort(
     """
     casa = _ensure_casa(casa)
     _msg_yellow(
-        "This SORT implementation is adapted from https://github.com/abewley/sort, "
-        "authored by Alex Bewley under the GPL-3.0 License. A small modification was "
-        "made to handle frames with zero detections (empty _iou_batch guard). If the "
-        "original repository is updated, this implementation should be replaced by "
-        "having users install directly from the upstream repo."
+        "This SORT implementation is adopted from https://github.com/abewley/sort, authored by Alex Bewley under the GPL-3.0 License, with a small modification to handle frames with zero detections (empty _iou_batch guard)."
     )
     detections_root = casa.get("detections", {})
     if not isinstance(detections_root, dict):

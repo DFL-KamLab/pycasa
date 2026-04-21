@@ -2,7 +2,7 @@
 
 Tracking links frame-level detections over time into trajectories so downstream motility and visualization steps can operate on motion continuity rather than isolated per-frame points.
 
-pycasa implements the **SORT** (Simple Online and Realtime Tracking) algorithm, which uses Kalman filtering for state prediction and the Hungarian algorithm for IoU-based detection-to-track assignment.
+pycasa currently implements the **SORT** (Simple Online and Realtime Tracking) algorithm, which uses Kalman filtering for state prediction and the Hungarian algorithm for IoU-based detection-to-track assignment. Additional tracking backends may be added in future releases.
 
 ## Public Methods In This Section
 
@@ -39,18 +39,11 @@ For each frame, SORT:
 
 **Output**
 
-Results are written to `casa["tracks"]["sort"]`, keyed by detection source name:
+Tracking results are keyed by detection source name. Each track ID maps to a dict of `{frame_index: [x, y, w, h]}` coordinate data. Retrieve results with:
 
 ```python
-casa["tracks"]["sort"] = {
-    "groundtruth": {track_id: {frame: [x, y, ...], ...}, ...},
-    "yolov5":      {track_id: {frame: [x, y, ...], ...}, ...},
-}
+sort_tracks = self.get_tracks(backend="sort")
 ```
-
-Each `track_id` maps to a dict of `{frame_index: [x, y, w, h]}` coordinate data.
-
-`casa["meta"]["last_tracking"]` is also updated.
 
 **Returns**
 
@@ -71,3 +64,15 @@ sort_tracks = self.get_tracks(backend="sort")
 - If no detections are available, sort still runs on groundtruth (unless `skip_gt=True`).
 - Re-run tracking after changing the detection method to ensure tracks correspond to current detections.
 - The LAP package (`lap`) is used for the assignment step when available; otherwise SciPy's `linear_sum_assignment` is used as a fallback.
+
+---
+
+## Citations
+
+The SORT implementation in pycasa is adapted from the original work by Alex Bewley:
+
+> Bewley, A., Ge, Z., Ott, L., Ramos, F., & Upcroft, B. (2016). **Simple Online and Realtime Tracking.** *IEEE International Conference on Image Processing (ICIP)*. [arXiv:1602.00763](https://arxiv.org/abs/1602.00763)
+
+Source code: [https://github.com/abewley/sort](https://github.com/abewley/sort) — licensed under GPL-3.0.
+
+**Modification note:** The original implementation does not handle frames with zero detections, which causes a crash during the IoU matrix computation step. pycasa adds a two-line early-return guard in `_iou_batch` that returns a correctly-shaped zero matrix when either input is empty. If the upstream repository is updated to include this fix, the intent is to remove the local copy and have users pull from the original repo directly.

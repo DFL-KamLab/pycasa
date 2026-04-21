@@ -5,8 +5,7 @@ Detection is the localization stage of the pipeline. It identifies candidate cel
 **Single-result policy:** only one predicted detection method is kept at a time. Running a second detector overwrites the first and emits a warning.
 
 All detection methods:
-- Write detections under `casa["detections"][<method>]`.
-- Update `casa["meta"]["last_detection"]`.
+- Store detections in the session, accessible via `self.get_detections()`.
 - Return the same `Casa` instance for fluent chaining.
 
 Detection rows follow the legacy normalized format:
@@ -59,8 +58,7 @@ Legacy-parity moving-cell detection using background subtraction or Gaussian mix
 
 **Output**
 
-- `casa["video"]["binarized_moving_cells_video"]` — per-frame binary foreground mask.
-- `casa["detections"]["moving_cells"]` — frame-indexed normalized detections.
+Detections are stored in the session and accessible via `self.get_detections()`. An intermediate per-frame binary foreground mask is also retained internally.
 
 **Returns**
 
@@ -114,7 +112,7 @@ The algorithm operates in stages:
 
 **Output**
 
-In addition to `casa["detections"]["digital_washing"]`, intermediate binary videos are written to `casa["video"]`:
+Detections are stored in the session and accessible via `self.get_detections()`. Intermediate binary videos are also retained internally:
 
 | Key | Description |
 |-----|-------------|
@@ -173,8 +171,7 @@ Full list: `sys-casa_yolov5n.pt`, `sys-casa_yolov5s.pt`, `sys-casa_yolov5m.pt`, 
 
 **Output**
 
-- `casa["detections"]["yolov5"]` — frame-indexed normalized detections.
-- `casa["meta"]["last_detection"]` — includes `weights`, `conf`, `frames_processed`, `detections_found`, and per-frame confidence statistics.
+Detections are stored in the session as frame-indexed normalized detection rows and are accessible via `self.get_detections()`.
 
 Detection output format: `[class_id, norm_center_x, norm_center_y, norm_width, norm_height]`
 
@@ -210,7 +207,7 @@ self.detection.yolov5(weights="/path/to/my_weights.pt", download=False)
 
 ## Output Behavior
 
-All three detection methods write their output to `casa["detections"][<method_name>]` and update `casa["meta"]["last_detection"]`. Only one predicted detection source is kept at a time — running a second method overwrites the previous result and emits a yellow warning.
+All detection methods store their output in the session. Only one predicted detection source is kept at a time — running a second method overwrites the previous result and emits a yellow warning. Retrieve detections with `self.get_detections()`.
 
 To inspect detections after running:
 

@@ -1,6 +1,6 @@
 # API: Motility
 
-Motility transforms SORT trajectories into biologically meaningful motion metrics using a sliding-window approach. Each track is divided into overlapping windows, and a set of standard CASA motility parameters is computed for each window.
+Motility transforms tracked trajectories into biologically meaningful motion metrics using a sliding-window approach. Each track is divided into overlapping windows, and a set of standard CASA motility parameters is computed for each window.
 
 ## Public Methods In This Section
 
@@ -10,17 +10,17 @@ Motility transforms SORT trajectories into biologically meaningful motion metric
 
 ## `self.motility.standard_motility_parameters(...)`
 
-Compute legacy-standard CASA motility parameters from SORT trajectories.
+Compute legacy-standard CASA motility parameters from tracked trajectories.
 
 **Parameters**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `frame_rate` | `float \| None` | `None` | Frames per second override. If `None`, uses `casa["meta"]["sampling_rate"]` when available, otherwise falls back to `30`. |
+| `frame_rate` | `float \| None` | `None` | Frames per second override. If `None`, uses the session's configured sampling rate (set via `self.set_sampling_rate()`) when available, otherwise falls back to `30`. |
 | `window_size` | `int` | `10` | Number of trajectory points per sliding window. Minimum effective value is `2`. |
 | `overlap` | `float` | `0.2` | Window overlap ratio. The step between windows is computed as `max(1, int(window_size * (1 - overlap)))`. |
 | `smoothing_window` | `int \| None` | `None` | Smoothing window size used for VAP and ALH computation. When `None`, defaults to `max(2, window_size // 2)`. |
-| `conversion_required` | `bool` | `True` | If `True`, requires a valid positive `casa["meta"]["um_per_px"]` value. Velocity and displacement metrics are converted from pixel units to micron units. If `False`, missing calibration leaves output in pixel units. |
+| `conversion_required` | `bool` | `True` | If `True`, requires a valid pixel calibration set via `self.set_um_per_px()`. Velocity and displacement metrics are converted from pixel units to micron units. If `False`, missing calibration leaves output in pixel units. |
 | `show_progress` | `bool` | `True` | Show the pycasa progress bar while processing tracks. |
 | `verbose` | `bool` | `True` | Print per-source motility summaries after computation. Does not suppress warnings. |
 
@@ -31,29 +31,11 @@ Compute legacy-standard CASA motility parameters from SORT trajectories.
 
 **Output**
 
-Metrics are written to `casa["motility"]["standard_motility_parameters"]`, keyed by detection source name (matching the track sources from SORT):
+Metrics are stored in the session keyed by detection source name. Each track ID maps to per-window metric lists. Retrieve results with:
 
 ```python
-casa["motility"]["standard_motility_parameters"] = {
-    "yolov5": {
-        track_id: {
-            "VCL": [float, ...],   # one value per window
-            "VSL": [float, ...],
-            "VAP": [float, ...],
-            "LIN": [float, ...],
-            "ALH": [float, ...],
-            "WOB": [float, ...],
-            "STR": [float, ...],
-            "MAD": [float, ...],
-            "frame_ranges": str,
-        },
-        ...
-    },
-    ...
-}
+motility = self.get_motility()
 ```
-
-`casa["meta"]["last_motility"]` is also updated.
 
 **Returns**
 

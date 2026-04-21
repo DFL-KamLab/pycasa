@@ -18,7 +18,7 @@ pycasa is developed and maintained by the DFL-KamLab at NJIT.
 
     ---
 
-    DFL-KamLab, NJIT & Weill Cornell Medicine
+    Weill Cornell Medicine
 
     [:fontawesome-brands-google-scholar:](https://scholar.google.com/citations?user=BpQYhfwAAAAJ&hl=en&oi=ao "Google Scholar")
     [:fontawesome-brands-linkedin:](https://www.linkedin.com/in/ludvik-alkhoury/ "LinkedIn")

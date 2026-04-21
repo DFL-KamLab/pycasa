@@ -28,27 +28,27 @@ pip install "pycasa[io,detection,tracking,yolo] @ git+https://github.com/DFL-Kam
 
     [:octicons-arrow-right-24: Casa Session Model](api/casa-session.md)
 
--   :material-magnify:{ .lg .middle } **Three detection backends**
+-   :material-magnify:{ .lg .middle } **Multiple detection methods**
 
     ---
 
-    Choose from background-subtraction moving-cell detection, the Digital Washing algorithm, or managed YOLOv5 weights trained on CASA semen data.
+    Choose from several detection methods — from classical background-subtraction approaches to deep-learning-based detectors trained on CASA semen data.
 
     [:octicons-arrow-right-24: Detection API](api/detection.md)
 
--   :material-chart-timeline-variant:{ .lg .middle } **SORT tracking**
+-   :material-chart-timeline-variant:{ .lg .middle } **Multi-object tracking**
 
     ---
 
-    Link detections across frames using Kalman-filter state prediction and Hungarian-algorithm IoU assignment. Produces per-track frame-indexed trajectories ready for motility analysis.
+    Link detections across frames into per-track trajectories using supported tracking algorithms. Trajectories are frame-indexed and ready for downstream motility analysis.
 
     [:octicons-arrow-right-24: Tracking API](api/tracking.md)
 
--   :material-speedometer:{ .lg .middle } **8 standard CASA motility metrics**
+-   :material-speedometer:{ .lg .middle } **Standard CASA motility metrics**
 
     ---
 
-    Compute VCL, VSL, VAP, LIN, ALH, WOB, STR, and MAD via a sliding-window approach on SORT trajectories. Micron-unit output when pixel calibration is set.
+    Motility parameters widely used in sperm cell studies can be calculated effortlessly — using a sliding-window approach on tracked trajectories with micron-unit output when pixel calibration is set.
 
     [:octicons-arrow-right-24: Motility API](api/motility.md)
 
@@ -110,7 +110,7 @@ pip install "pycasa[io,detection,tracking,yolo] @ git+https://github.com/DFL-Kam
     <div class="card-img-placeholder" style="display:none">screenshot coming soon</div>
     <div class="card-body">
       <p class="card-title">Detection + SORT Tracking</p>
-      <p class="card-desc">Compare all three detection backends and link detections into frame-indexed trajectories using SORT (Kalman + Hungarian).</p>
+      <p class="card-desc">Compare detection methods and link detections into frame-indexed trajectories using available tracking algorithms.</p>
       <span class="card-link">View example →</span>
     </div>
   </a>
@@ -123,7 +123,7 @@ pip install "pycasa[io,detection,tracking,yolo] @ git+https://github.com/DFL-Kam
     <div class="card-img-placeholder" style="display:none">screenshot coming soon</div>
     <div class="card-body">
       <p class="card-title">Motility + Assessment</p>
-      <p class="card-desc">Compute all 8 standard CASA motility metrics (VCL, VSL, VAP …) and score detector precision, recall, and F1 against groundtruth.</p>
+      <p class="card-desc">Compute standard CASA motility metrics and score detector precision, recall, and F1 against groundtruth.</p>
       <span class="card-link">View example →</span>
     </div>
   </a>
