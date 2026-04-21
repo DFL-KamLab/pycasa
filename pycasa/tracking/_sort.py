@@ -7,7 +7,7 @@ from ..utils import _ensure_import
 from ..utils import _progress_bar
 from ..utils import _resolve_active_predicted_detection_method
 from ..utils import _ensure_video_dimensions
-from ..utils import _warn_yellow
+from ..utils import _msg_yellow, _warn_yellow
 
 
 def _linear_assignment(cost_matrix: np.ndarray) -> np.ndarray:
@@ -460,6 +460,13 @@ def sort(
         >>> session = session.tracking.sort(skip_gt=False)
     """
     casa = _ensure_casa(casa)
+    _msg_yellow(
+        "This SORT implementation is adapted from https://github.com/abewley/sort, "
+        "authored by Alex Bewley under the GPL-3.0 License. A small modification was "
+        "made to handle frames with zero detections (empty _iou_batch guard). If the "
+        "original repository is updated, this implementation should be replaced by "
+        "having users install directly from the upstream repo."
+    )
     detections_root = casa.get("detections", {})
     if not isinstance(detections_root, dict):
         detections_root = {}

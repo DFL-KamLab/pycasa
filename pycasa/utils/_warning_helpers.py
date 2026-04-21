@@ -1,6 +1,12 @@
 import warnings
 
 
+def _msg_yellow(message: str) -> None:
+    """Print an informational message in yellow without a 'Warning:' prefix."""
+    print(f"\033[93m{message}\033[0m")
+    print()
+
+
 def _warn_yellow(message: str) -> None:
     """Print a short yellow warning message."""
     original_warning_formatter = warnings.formatwarning

@@ -1,0 +1,33 @@
+Subject: SORT Tracker - Thank You + Potential Pull Request
+
+Dear Alex,
+
+I hope this message finds you well. I am writing to express my sincere
+appreciation for your SORT (Simple Online and Realtime Tracking) implementation
+available at https://github.com/abewley/sort. It is genuinely one of the most
+elegant and accessible multi-object tracking solutions out there -- clean,
+well-documented, and remarkably effective for its simplicity. It has been an
+invaluable resource for our work.
+
+We are using SORT as part of a Python library called PyCASA, which performs
+cell tracking and analysis for microscopy data. While integrating SORT, we
+discovered a small edge case: when a video frame contains zero detections, the
+original _iou_batch function raises an error due to a NumPy broadcasting issue
+on empty arrays. We patched this with a two-line early-return guard at the top
+of _iou_batch that returns a zero-shaped IoU matrix when either input is empty.
+It is a minimal, non-breaking fix.
+
+We noticed that the repository was last updated approximately 6 years ago. If
+SORT is still actively maintained, we would love to submit a pull request with
+this fix -- it is a simple change that could help others who encounter the same
+issue. If the project is no longer actively maintained, that is completely
+understandable, and we just wanted to reach out and say thank you.
+
+Either way, your work on SORT has had a real impact and continues to be widely
+used and appreciated by the research community. Thank you for making it
+available.
+
+Warm regards,
+[Your Name]
+[Your Affiliation / Institution]
+[Contact Information]

@@ -36,7 +36,7 @@ from ._video_helpers import (
     _convert_video_to_grayscale,
     _ensure_original_video,
 )
-from ._warning_helpers import _warn_yellow
+from ._warning_helpers import _msg_yellow, _warn_yellow
 from ._visualization_helpers import (
     _import_matplotlib_for_visualization,
     _parse_detection_entries,
@@ -47,6 +47,7 @@ from ._visualization_helpers import (
 )
 __all__ = [
     "_progress_bar",
+    "_msg_yellow",
     "_warn_yellow",
     "_predicted_detection_keys",
     "_clear_predicted_detections",
