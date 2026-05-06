@@ -17,6 +17,7 @@ def _ensure_import(
     pip_name: str | None = None,
     prompt_install: bool = True,
     terminate_on_decline: bool = True,
+    required: bool = False,
 ) -> ModuleType:
     """Check/import optional dependency, optionally prompting to install it.
 
@@ -47,19 +48,20 @@ def _ensure_import(
         package_name = pip_name or import_name
         install_command = f"{sys.executable} -m pip install {package_name}"
 
+        label = "Required" if required else "Optional"
         if not prompt_install:
             raise ImportError(
-                f"Missing optional dependency '{import_name}'. Install with: {install_command}"
+                f"Missing {label.lower()} dependency '{import_name}'. Install with: {install_command}"
             ) from initial_exc
 
         if not _is_interactive_terminal():
             raise ImportError(
-                f"Missing optional dependency '{import_name}' in a non-interactive environment. "
+                f"Missing {label.lower()} dependency '{import_name}' in a non-interactive environment. "
                 f"Install with: {install_command}"
             ) from initial_exc
 
         prompt = (
-            f"Optional dependency '{import_name}' is missing. "
+            f"{label} dependency '{import_name}' is missing. "
             f"Install '{package_name}' now? [y/N]: "
         )
         answer = input(prompt).strip().lower()

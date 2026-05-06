@@ -10,272 +10,6 @@ from ..utils import _ensure_video_dimensions
 from ..utils import _msg_yellow, _warn_yellow
 
 
-def _linear_assignment(cost_matrix: np.ndarray) -> np.ndarray:
-    """Solve linear assignment, preferring LAP when available."""
-    try:
-        import lap  # type: ignore
-
-        _, x, y = lap.lapjv(cost_matrix, extend_cost=True)
-        return np.array([[y[i], i] for i in x if i >= 0], dtype=int)
-    except ImportError:
-        scipy_optimize = _ensure_import(
-            "scipy.optimize",
-            pip_name="scipy",
-            prompt_install=False,
-        )
-        x, y = scipy_optimize.linear_sum_assignment(cost_matrix)
-        return np.array(list(zip(x, y)), dtype=int)
-
-
-def _iou_batch(bb_test: np.ndarray, bb_groundtruth: np.ndarray) -> np.ndarray:
-    """Compute IoU matrix for arrays of ``[x1, y1, x2, y2]`` boxes."""
-    if bb_test.size == 0 or bb_groundtruth.size == 0:
-        return np.zeros((len(bb_test), len(bb_groundtruth)), dtype=float)
-
-    bb_groundtruth = np.expand_dims(bb_groundtruth, 0)
-    bb_test = np.expand_dims(bb_test, 1)
-
-    xx1 = np.maximum(bb_test[..., 0], bb_groundtruth[..., 0])
-    yy1 = np.maximum(bb_test[..., 1], bb_groundtruth[..., 1])
-    xx2 = np.minimum(bb_test[..., 2], bb_groundtruth[..., 2])
-    yy2 = np.minimum(bb_test[..., 3], bb_groundtruth[..., 3])
-    w = np.maximum(0.0, xx2 - xx1)
-    h = np.maximum(0.0, yy2 - yy1)
-    wh = w * h
-    denom = (
-        (bb_test[..., 2] - bb_test[..., 0]) * (bb_test[..., 3] - bb_test[..., 1])
-        + (bb_groundtruth[..., 2] - bb_groundtruth[..., 0])
-        * (bb_groundtruth[..., 3] - bb_groundtruth[..., 1])
-        - wh
-    )
-    denom = np.where(denom <= 0, 1e-12, denom)
-    return wh / denom
-
-
-def _convert_bbox_to_z(bbox: np.ndarray) -> np.ndarray:
-    """Convert ``[x1, y1, x2, y2]`` to Kalman measurement ``[x, y, s, r]``."""
-    w = bbox[2] - bbox[0]
-    h = bbox[3] - bbox[1]
-    x = bbox[0] + w / 2.0
-    y = bbox[1] + h / 2.0
-    s = w * h
-    r = w / float(h if h != 0 else 1e-12)
-    return np.array([x, y, s, r], dtype=float).reshape((4, 1))
-
-
-def _convert_x_to_bbox(x: np.ndarray) -> np.ndarray:
-    """Convert Kalman state ``[x, y, s, r]`` to ``[x1, y1, x2, y2]`` box."""
-    s = float(x[2, 0])
-    r = float(x[3, 0])
-    if s <= 0 or r <= 0:
-        w = 0.0
-        h = 0.0
-    else:
-        w = float(np.sqrt(s * r))
-        h = float(s / (w if w != 0 else 1e-12))
-
-    cx = float(x[0, 0])
-    cy = float(x[1, 0])
-    return np.array(
-        [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0],
-        dtype=float,
-    ).reshape((1, 4))
-
-
-class _KalmanBoxTracker:
-    """Internal SORT track state for one object."""
-
-    count = 0
-
-    def __init__(self, bbox: np.ndarray) -> None:
-        self.x = np.zeros((7, 1), dtype=float)
-        self.F = np.array(
-            [
-                [1, 0, 0, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0, 1, 0],
-                [0, 0, 1, 0, 0, 0, 1],
-                [0, 0, 0, 1, 0, 0, 0],
-                [0, 0, 0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 0, 0, 1],
-            ],
-            dtype=float,
-        )
-        self.H = np.array(
-            [
-                [1, 0, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0, 0],
-                [0, 0, 1, 0, 0, 0, 0],
-                [0, 0, 0, 1, 0, 0, 0],
-            ],
-            dtype=float,
-        )
-        self.P = np.eye(7, dtype=float)
-        self.R = np.eye(4, dtype=float)
-        self.Q = np.eye(7, dtype=float)
-
-        self.R[2:, 2:] *= 10.0
-        self.P[4:, 4:] *= 1000.0
-        self.P *= 10.0
-        self.Q[-1, -1] *= 0.01
-        self.Q[4:, 4:] *= 0.01
-
-        self.x[:4] = _convert_bbox_to_z(bbox)
-        self.time_since_update = 0
-        self.id = _KalmanBoxTracker.count
-        _KalmanBoxTracker.count += 1
-        self.history: list[np.ndarray] = []
-        self.hits = 0
-        self.hit_streak = 0
-        self.age = 0
-
-    def _predict(self) -> None:
-        self.x = self.F @ self.x
-        self.P = self.F @ self.P @ self.F.T + self.Q
-
-    def _update(self, bbox: np.ndarray) -> None:
-        z = _convert_bbox_to_z(bbox)
-        y = z - (self.H @ self.x)
-        s = self.H @ self.P @ self.H.T + self.R
-        k = self.P @ self.H.T @ np.linalg.inv(s)
-        self.x = self.x + (k @ y)
-        i = np.eye(self.P.shape[0], dtype=float)
-        self.P = (i - (k @ self.H)) @ self.P
-
-    def update(self, bbox: np.ndarray) -> None:
-        self.time_since_update = 0
-        self.history = []
-        self.hits += 1
-        self.hit_streak += 1
-        self._update(bbox)
-
-    def predict(self) -> np.ndarray:
-        if float(self.x[6, 0] + self.x[2, 0]) <= 0:
-            self.x[6, 0] = 0.0
-        self._predict()
-        self.age += 1
-        if self.time_since_update > 0:
-            self.hit_streak = 0
-        self.time_since_update += 1
-        self.history.append(_convert_x_to_bbox(self.x))
-        return self.history[-1]
-
-    def get_state(self) -> np.ndarray:
-        return _convert_x_to_bbox(self.x)
-
-
-def _associate_detections_to_trackers(
-    detections: np.ndarray,
-    trackers: np.ndarray,
-    iou_threshold: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Assign detections to trackers using IoU and Hungarian matching."""
-    if len(trackers) == 0:
-        return (
-            np.empty((0, 2), dtype=int),
-            np.arange(len(detections), dtype=int),
-            np.empty((0,), dtype=int),
-        )
-
-    iou_matrix = _iou_batch(detections, trackers)
-    if min(iou_matrix.shape) > 0:
-        association = (iou_matrix > iou_threshold).astype(np.int32)
-        if association.sum(1).max() == 1 and association.sum(0).max() == 1:
-            matched_indices = np.stack(np.where(association), axis=1)
-        else:
-            matched_indices = _linear_assignment(-iou_matrix)
-    else:
-        matched_indices = np.empty((0, 2), dtype=int)
-
-    matched_det_ids = set(matched_indices[:, 0].tolist()) if matched_indices.size else set()
-    matched_trk_ids = set(matched_indices[:, 1].tolist()) if matched_indices.size else set()
-    unmatched_detections = [idx for idx in range(len(detections)) if idx not in matched_det_ids]
-    unmatched_trackers = [idx for idx in range(len(trackers)) if idx not in matched_trk_ids]
-
-    matches: list[np.ndarray] = []
-    for det_idx, trk_idx in matched_indices:
-        if iou_matrix[det_idx, trk_idx] < iou_threshold:
-            unmatched_detections.append(int(det_idx))
-            unmatched_trackers.append(int(trk_idx))
-        else:
-            matches.append(np.array([[det_idx, trk_idx]], dtype=int))
-
-    matched = (
-        np.empty((0, 2), dtype=int)
-        if len(matches) == 0
-        else np.concatenate(matches, axis=0)
-    )
-    return (
-        matched,
-        np.array(unmatched_detections, dtype=int),
-        np.array(unmatched_trackers, dtype=int),
-    )
-
-
-class _SortTracker:
-    """SORT tracker implementation used by ``pycasa.tracking.sort``."""
-
-    def __init__(self, max_age: int = 1, min_hits: int = 3, iou_threshold: float = 0.3) -> None:
-        self.max_age = int(max_age)
-        self.min_hits = int(min_hits)
-        self.iou_threshold = float(iou_threshold)
-        self.trackers: list[_KalmanBoxTracker] = []
-        self.frame_count = 0
-
-    def update(self, detections: np.ndarray | None = None) -> np.ndarray:
-        dets = np.empty((0, 4), dtype=float) if detections is None else np.asarray(detections, dtype=float)
-        if dets.ndim != 2:
-            dets = np.empty((0, 4), dtype=float)
-        if dets.size == 0:
-            dets = np.empty((0, 4), dtype=float)
-        elif dets.shape[1] >= 4:
-            dets = dets[:, :4]
-        else:
-            dets = np.empty((0, 4), dtype=float)
-
-        self.frame_count += 1
-        trks = np.zeros((len(self.trackers), 5), dtype=float)
-        to_delete: list[int] = []
-        ret: list[np.ndarray] = []
-
-        for idx in range(len(trks)):
-            pos = self.trackers[idx].predict()[0]
-            trks[idx, :] = [pos[0], pos[1], pos[2], pos[3], 0]
-            if np.any(np.isnan(pos)):
-                to_delete.append(idx)
-
-        trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
-        for idx in reversed(to_delete):
-            self.trackers.pop(idx)
-
-        matched, unmatched_dets, _ = _associate_detections_to_trackers(
-            dets,
-            trks[:, :4] if trks.size else np.empty((0, 4), dtype=float),
-            self.iou_threshold,
-        )
-
-        for det_idx, trk_idx in matched:
-            self.trackers[int(trk_idx)].update(dets[int(det_idx), :4])
-
-        for det_idx in unmatched_dets:
-            self.trackers.append(_KalmanBoxTracker(dets[int(det_idx), :4]))
-
-        i = len(self.trackers)
-        for tracker in reversed(self.trackers):
-            state = tracker.get_state()[0]
-            if tracker.time_since_update < 1 and (
-                tracker.hit_streak >= self.min_hits or self.frame_count <= self.min_hits
-            ):
-                ret.append(np.concatenate((state, [tracker.id + 1]), axis=0).reshape(1, -1))
-            i -= 1
-            if tracker.time_since_update > self.max_age:
-                self.trackers.pop(i)
-
-        if len(ret) > 0:
-            return np.concatenate(ret, axis=0)
-        return np.empty((0, 5), dtype=float)
-
-
 def _detection_to_bbox(det: Any, width: int, height: int) -> list[float] | None:
     """Convert one detection row to pixel-space ``[x1, y1, x2, y2]``."""
     cx: float
@@ -444,7 +178,7 @@ def sort(
             If tracking cannot resolve frame geometry from ``meta`` or video
             array shape.
         ImportError:
-            If SciPy is unavailable when Hungarian assignment is needed.
+            If the sort package is unavailable and the user declines installation.
 
     Notes:
         - Supports both legacy list/tuple detections and dict-based detection
@@ -459,6 +193,15 @@ def sort(
         >>> session = pc.Casa()
         >>> session = session.tracking.sort(skip_gt=False)
     """
+    _sort_mod = _ensure_import(
+        "sort",
+        pip_name="git+https://github.com/DFL-KamLab/sort.git",
+        prompt_install=True,
+        required=True,
+    )
+    Sort = _sort_mod.Sort
+    KalmanBoxTracker = _sort_mod.KalmanBoxTracker
+
     casa = _ensure_casa(casa)
     _msg_yellow(
         "This SORT implementation is adopted from https://github.com/abewley/sort, authored by Alex Bewley under the GPL-3.0 License, with a small modification to handle frames with zero detections (empty _iou_batch guard)."
@@ -602,8 +345,8 @@ def sort(
                 global_frame,
             )
 
-        _KalmanBoxTracker.count = 0
-        tracker = _SortTracker(
+        KalmanBoxTracker.count = 0
+        tracker = Sort(
             max_age=max_age,
             min_hits=min_hits,
             iou_threshold=iou_threshold,
@@ -625,13 +368,15 @@ def sort(
                 if box is not None:
                     frame_boxes.append(box)
 
-            detections_array = (
-                np.asarray(frame_boxes, dtype=float)
-                if frame_boxes
-                else np.empty((0, 4), dtype=float)
-            )
+            if frame_boxes:
+                dets_array = np.asarray(frame_boxes, dtype=float)
+                dets_input = np.hstack(
+                    [dets_array, np.zeros((len(dets_array), 1), dtype=float)]
+                )
+            else:
+                dets_input = np.empty((0, 5), dtype=float)
 
-            tracked_objects = tracker.update(detections_array)
+            tracked_objects = tracker.update(dets_input)
             for tracked_object in tracked_objects:
                 track_id = int(tracked_object[4])
                 center_x = float((tracked_object[0] + tracked_object[2]) / 2.0)
