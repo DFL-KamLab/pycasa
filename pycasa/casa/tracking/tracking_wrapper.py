@@ -3,6 +3,65 @@ class _SessionTrackingNamespace:
         """Initialize the tracking namespace for a ``Casa`` session."""
         self._session = session
 
+    def jpdaf(
+        self,
+        skip_gt: bool = False,
+        frame_rate: float | None = None,
+        *,
+        show_progress: bool = True,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Track detections using JPDAF and store tracks in session state.
+
+        Implements the Joint Probabilistic Data Association Filter from
+        Urbano et al. (2017), IEEE Transactions on Medical Imaging 36(3),
+        792–801.  All algorithm parameters (σₙ, γᵥ, λ, etc.) are drawn
+        directly from the paper and scaled to pixel space using
+        ``casa['meta']['um_per_px']``.
+
+        Parameters:
+            skip_gt (bool, optional):
+                If ``False`` (default), run JPDAF on both available sources:
+                ``groundtruth`` and the active predicted detection method.
+                If ``True``, skip groundtruth and track only predictions.
+            frame_rate (float | None, optional):
+                Frames per second.  When ``None``, read from
+                ``casa['meta']['sampling_rate']``.  Required to derive the
+                CWNA motion-model frame period ``T = 1 / frame_rate``.
+            show_progress (bool, optional):
+                If ``True``, show the shared pycasa progress bar during
+                per-frame tracking.
+            verbose (bool, optional):
+                If ``True``, print concise runtime start/end summaries.
+
+        Returns:
+            Casa:
+                The same fluent ``Casa`` session instance.
+
+        Raises:
+            ValueError:
+                If ``frame_rate`` cannot be resolved from parameters or
+                session metadata, or if video dimensions are unavailable.
+
+        Notes:
+            Writes per-source tracks to ``casa['tracks']['jpdaf'][source]``
+            and stores invocation metadata in ``casa['meta']['last_tracking']``.
+
+        Examples:
+            >>> session = session.tracking.jpdaf(skip_gt=False)
+        """
+        from ...tracking import jpdaf
+
+        return self._session._sync_from(
+            jpdaf(
+                self._session._as_dict(),
+                skip_gt=skip_gt,
+                frame_rate=frame_rate,
+                show_progress=show_progress,
+                verbose=verbose,
+            )
+        )
+
     def sort(
         self,
         skip_gt: bool = False,

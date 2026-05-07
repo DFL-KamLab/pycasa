@@ -29,6 +29,7 @@ from ._setter_helpers import set_um_per_px
 from ._tracking_helpers import _is_track_map
 from ._tracking_helpers import _resolve_active_sort_source_name
 from ._tracking_helpers import _resolve_active_sort_tracks
+from ._tracking_helpers import _resolve_active_tracking_backend
 from ._tracking_helpers import _resolve_sort_track_sources
 from ._video_helpers import (
     _ensure_bgr,
@@ -55,6 +56,7 @@ __all__ = [
     "_is_track_map",
     "_resolve_active_sort_source_name",
     "_resolve_active_sort_tracks",
+    "_resolve_active_tracking_backend",
     "_resolve_sort_track_sources",
     "_ensure_import",
     "_build_casa_info",

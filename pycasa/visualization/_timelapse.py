@@ -10,6 +10,7 @@ from ..utils import _parse_image_types
 from ..utils import _prepare_frame_for_display
 from ..utils import _resolve_active_predicted_detection_method
 from ..utils import _resolve_active_sort_tracks
+from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_sort_track_sources
 from ..utils import _resolve_frame_entries
 
@@ -117,6 +118,7 @@ def timelapse(
     tracks_root = casa.get("tracks", {})
     if not isinstance(tracks_root, dict):
         tracks_root = {}
+    active_tracking_backend = _resolve_active_tracking_backend(tracks_root) or "sort"
     track_sources = _resolve_sort_track_sources(tracks_root)
     ordered_track_sources = sorted(
         track_sources.keys(),
@@ -161,7 +163,7 @@ def timelapse(
     )
     track_source_labels = {
         source_name: _format_overlay_source_label(
-            f"sort:{source_name}", fallback="sort"
+            f"{active_tracking_backend}:{source_name}", fallback=active_tracking_backend
         )
         for source_name in available_track_sources
     }
@@ -605,7 +607,7 @@ def timelapse(
         "type": "timelapse",
         "video_type": "+".join(image_keys),
         "detection_method": selected_detection_method,
-        "tracking_method": "sort",
+        "tracking_method": active_tracking_backend,
         "tracking_sources": available_track_sources,
         "show_detections": bool(state["show_detections"]),
         "show_tracks": bool(any(state["show_tracks_by_source"].values())),

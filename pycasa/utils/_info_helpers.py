@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from ._tracking_helpers import _resolve_active_tracking_backend
 from ._tracking_helpers import _resolve_sort_track_sources
 
 
@@ -56,12 +57,13 @@ def _build_tracking_summary(
     tracks: dict[str, Any],
     meta_last_tracking: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build per-source tracking summary for ``tracks['sort'][source]``."""
+    """Build per-source tracking summary for the active tracking backend."""
     if not isinstance(tracks, dict):
         tracks = {}
     if not isinstance(meta_last_tracking, dict):
         meta_last_tracking = {}
 
+    active_backend = _resolve_active_tracking_backend(tracks)
     sources = _resolve_sort_track_sources(tracks)
     rows: list[dict[str, Any]] = []
     for source_name in sorted(sources.keys(), key=lambda value: (value != "groundtruth", value)):
@@ -83,8 +85,9 @@ def _build_tracking_summary(
         else:
             primary_source = str(rows[0]["source"])
 
+    backend_label = active_backend if (active_backend and rows) else None
     return {
-        "backend": "sort" if rows else None,
+        "backend": backend_label,
         "detection_method": primary_source,
         "sources": rows,
     }
@@ -444,11 +447,11 @@ def _print_casa_info(info: dict[str, Any]) -> None:
         if section == "tracking":
             backend = section_data.get("backend")
             if not backend:
-                print("- sort: none")
+                print("- tracking: none")
                 continue
             sources = section_data.get("sources")
             if not isinstance(sources, list) or not sources:
-                print("- sort: none")
+                print(f"- {backend}: none")
                 continue
             for row in sources:
                 if not isinstance(row, dict):

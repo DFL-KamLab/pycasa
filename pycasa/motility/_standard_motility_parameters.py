@@ -4,6 +4,7 @@ import numpy as np
 
 from .._core._casa import _ensure_casa
 from ..utils import _progress_bar
+from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_sort_track_sources
 from ..utils import _warn_yellow
 
@@ -354,7 +355,8 @@ def standard_motility_parameters(
     """
     casa = _ensure_casa(casa)
     result_key = "standard_motility_parameters"
-    tracking_backend = "sort"
+    tracks_root_for_backend = casa.get("tracks", {})
+    tracking_backend = _resolve_active_tracking_backend(tracks_root_for_backend) or "sort"
 
     meta = casa.setdefault("meta", {})
     um_per_px_raw = meta.get("um_per_px")
@@ -398,7 +400,7 @@ def standard_motility_parameters(
     if not tracks_by_source:
         if verbose:
             print(
-                "No tracks found under 'sort'. "
+                f"No tracks found under '{tracking_backend}'. "
                 "Run tracking first."
             )
         meta["last_motility"] = {

@@ -2,6 +2,22 @@ from typing import Any
 
 from ._detection_helpers import _resolve_active_predicted_detection_method
 
+_KNOWN_TRACKING_BACKENDS = ("sort", "jpdaf")
+
+
+def _resolve_active_tracking_backend(tracks_root: dict[str, Any]) -> str | None:
+    """Return the name of the active tracking backend stored in ``tracks_root``.
+
+    Checks known backends in declaration order and returns the first one that
+    exists as a dict key.  Returns ``None`` when no recognized backend is found.
+    """
+    if not isinstance(tracks_root, dict):
+        return None
+    for backend in _KNOWN_TRACKING_BACKENDS:
+        if isinstance(tracks_root.get(backend), dict):
+            return backend
+    return None
+
 
 def _is_track_map(candidate: Any, *, allow_empty: bool = False) -> bool:
     """Return ``True`` when data looks like ``track_id -> frame -> coord``."""
@@ -19,22 +35,29 @@ def _is_track_map(candidate: Any, *, allow_empty: bool = False) -> bool:
 
 
 def _resolve_sort_track_sources(tracks_root: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Return SORT track maps grouped by source method key."""
+    """Return track maps grouped by source for the active tracking backend.
+
+    Checks all known backends (``sort``, ``jpdaf``) and returns sources for the
+    first one found.  Retains the original ``sort``-centric name for backward
+    compatibility with existing call sites.
+    """
     if not isinstance(tracks_root, dict):
         return {}
 
-    sort_tracks = tracks_root.get("sort")
-    if not isinstance(sort_tracks, dict):
+    backend = _resolve_active_tracking_backend(tracks_root)
+    if backend is None:
         return {}
-    if not sort_tracks:
+
+    backend_tracks = tracks_root.get(backend)
+    if not isinstance(backend_tracks, dict) or not backend_tracks:
         return {}
 
     # Backward-compatibility fallback for older single-result shape.
-    if _is_track_map(sort_tracks):
-        return {"groundtruth": sort_tracks}
+    if _is_track_map(backend_tracks):
+        return {"groundtruth": backend_tracks}
 
     sources: dict[str, dict[str, Any]] = {}
-    for source_name, source_tracks in sort_tracks.items():
+    for source_name, source_tracks in backend_tracks.items():
         if not isinstance(source_tracks, dict):
             continue
         if _is_track_map(source_tracks, allow_empty=True):
