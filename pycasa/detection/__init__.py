@@ -13,12 +13,12 @@ Outputs:
 
 Methods:
     - ``detect_moving_cells(...)``
-    - ``yolov5(...)``
     - ``digital_washing(...)``
+    - ``yolo(...)``
 """
 
 from ._detect_moving_cells import detect_moving_cells
 from ._digital_washing import digital_washing
-from ._yolov5 import yolov5
+from ._yolo import yolo
 
-__all__ = ["detect_moving_cells", "digital_washing", "yolov5"]
+__all__ = ["detect_moving_cells", "digital_washing", "yolo"]

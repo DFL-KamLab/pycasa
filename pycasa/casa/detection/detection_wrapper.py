@@ -108,26 +108,42 @@ class _SessionDetectionNamespace:
             )
         )
 
-    def yolov5(
+    def yolo(
         self,
-        weights: str = "sys-casa_yolov5s.pt",
+        yolo_model: str = "yolov5",
+        weights: str | None = None,
         conf: float = 0.15,
-        delete_temp: bool = True,
         download: bool = True,
         force_download: bool = False,
         show_progress: bool = True,
         verbose: bool = True,
     ) -> "Casa":
-        """Run YOLOv5 detection on the current in-memory video.
+        """Run YOLO detection on the current in-memory video.
 
         Parameters:
-            weights (str, optional):
-                Managed weight name (for example ``sys-opt_yolov5m.pt``) or
-                custom local weight file path.
+            yolo_model (str, optional):
+                YOLO architecture to use: ``"yolov5"`` or ``"yolo26"``.
+            weights (str | None, optional):
+                Managed weight name or a custom local file path. When ``None``,
+                the default managed weight for the chosen ``yolo_model`` is used.
+
+                **YOLOv5 managed weights** (downloaded automatically):
+
+                - ``sys-casa_yolov5n/s/m/l/x.pt``
+                - ``sys-opt_yolov5n/s/m/l/x.pt``
+
+                Default: ``sys-casa_yolov5s.pt``
+
+                **YOLO26 managed weights** (not yet public — contact
+                atilla.sivri@njit.edu or ludvik.alkhoury@gmail.com):
+
+                - ``sys-casa_yolo26n/s/m/l/x.pt``
+                - ``sys-opt_yolo26n/s/m/l/x.pt``
+
+                Default: ``sys-casa_yolo26n.pt``
+
             conf (float, optional):
                 Detection confidence threshold.
-            delete_temp (bool, optional):
-                Legacy compatibility flag preserved for API parity.
             download (bool, optional):
                 If ``True``, automatically download missing managed weights.
             force_download (bool, optional):
@@ -142,15 +158,24 @@ class _SessionDetectionNamespace:
         Returns:
             Casa:
                 The same fluent ``Casa`` session instance.
+
+        Notes:
+            Detections are stored under
+            ``casa["detections"][yolo_model]`` (``"yolov5"`` or ``"yolo26"``).
+
+        Examples:
+            >>> session = session.detection.yolo(yolo_model="yolo26",
+            ...     weights=r"D:\\weights\\best.pt", download=False)
+            >>> session = session.detection.yolo(yolo_model="yolov5")
         """
-        from ...detection import yolov5
+        from ...detection import yolo
 
         return self._session._sync_from(
-            yolov5(
+            yolo(
                 self._session._as_dict(),
+                yolo_model=yolo_model,
                 weights=weights,
                 conf=conf,
-                delete_temp=delete_temp,
                 download=download,
                 force_download=force_download,
                 show_progress=show_progress,

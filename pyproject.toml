@@ -37,7 +37,7 @@ yolo = [
   "torchvision>=0.19,<0.22",
   "tqdm>=4.66,<5",
   "packaging>=24,<26",
-  "ultralytics>=8.2,<9",
+  "ultralytics>=8.3",
   "huggingface_hub>=0.26,<2",
 ]
 progress = [
