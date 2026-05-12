@@ -68,3 +68,4 @@ logs/
 site/
 .cache/
 
+.claude/ 
