@@ -2,7 +2,7 @@ from typing import Any
 
 from ._detection_helpers import _resolve_active_predicted_detection_method
 
-_KNOWN_TRACKING_BACKENDS = ("sort", "jpdaf")
+_KNOWN_TRACKING_BACKENDS = ("sort", "deepsort", "jpdaf")
 
 
 def _resolve_active_tracking_backend(tracks_root: dict[str, Any]) -> str | None:

@@ -202,6 +202,14 @@ def sort(
     Sort = _sort_mod.Sort
     KalmanBoxTracker = _sort_mod.KalmanBoxTracker
 
+    # NumPy 2.0 changed float() to require 0-d arrays; filterpy KalmanFilter
+    # stores x as (n, 1) column vector so x[i] is (1,) — patch convert_x_to_bbox
+    # to flatten x first so float(x[i]) always receives a scalar.
+    _orig_cx2b = _sort_mod.convert_x_to_bbox
+    def _compat_cx2b(x, score=None):
+        return _orig_cx2b(x.flatten(), score)
+    _sort_mod.convert_x_to_bbox = _compat_cx2b
+
     casa = _ensure_casa(casa)
     _msg_yellow(
         "This SORT implementation is adopted from https://github.com/abewley/sort, authored by Alex Bewley under the GPL-3.0 License, with a small modification to handle frames with zero detections (empty _iou_batch guard)."
@@ -221,6 +229,12 @@ def sort(
     has_detections = bool(predicted_detections)
 
     tracks_root = casa.setdefault("tracks", {})
+    existing_backends = [k for k, v in tracks_root.items() if isinstance(v, dict)]
+    if existing_backends:
+        _warn_yellow(
+            f"Previous tracking result overwritten "
+            f"({', '.join(existing_backends)} -> sort)."
+        )
     tracks_root.clear()
     tracks_root["sort"] = {}
     sort_root = tracks_root["sort"]

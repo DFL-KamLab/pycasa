@@ -1257,6 +1257,12 @@ def jpdaf(
     has_detections = bool(predicted_detections)
 
     tracks_root = casa.setdefault("tracks", {})
+    existing_backends = [k for k, v in tracks_root.items() if isinstance(v, dict)]
+    if existing_backends:
+        _warn_yellow(
+            f"Previous tracking result overwritten "
+            f"({', '.join(existing_backends)} -> jpdaf)."
+        )
     tracks_root.clear()
     tracks_root["jpdaf"] = {}
     jpdaf_root = tracks_root["jpdaf"]

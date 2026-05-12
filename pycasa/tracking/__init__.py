@@ -12,10 +12,12 @@ Outputs:
 
 Methods:
     - ``sort(...)``
+    - ``deepsort(...)``
     - ``jpdaf(...)``
 """
 
 from ._sort import sort
+from ._deepsort import deepsort
 from ._jpdaf import jpdaf
 
-__all__ = ["sort", "jpdaf"]
+__all__ = ["sort", "deepsort", "jpdaf"]

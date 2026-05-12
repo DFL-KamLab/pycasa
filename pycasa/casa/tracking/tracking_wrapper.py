@@ -62,6 +62,80 @@ class _SessionTrackingNamespace:
             )
         )
 
+    def deepsort(
+        self,
+        skip_gt: bool = False,
+        max_age: int = 30,
+        n_init: int = 3,
+        max_iou_distance: float = 0.7,
+        max_cosine_distance: float = 1.0,
+        nn_budget: int | None = None,
+        *,
+        show_progress: bool = True,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Track detections using DeepSORT and store tracks in session state.
+
+        Uses the original nwojke/deep_sort implementation, auto-cloned to
+        ``~/.pycasa/deepsort/`` on first use (requires ``git`` on PATH).
+
+        By default (``max_cosine_distance=1.0``) appearance-based matching is
+        disabled and association relies purely on Kalman-filter predictions and
+        IoU gating — recommended for biological cells whose visual appearance
+        is near-identical across tracks.
+
+        Parameters:
+            skip_gt (bool, optional):
+                If ``False`` (default), run DeepSORT on both available sources:
+                ``groundtruth`` and active predicted detections. If ``True``,
+                skip groundtruth and track only predictions.
+            max_age (int, optional):
+                Maximum number of missed frames before dropping a track.
+            n_init (int, optional):
+                Minimum consecutive detections needed before a track is
+                confirmed (equivalent to ``min_hits`` in SORT).
+            max_iou_distance (float, optional):
+                Maximum IoU *distance* gate (distance = 1 − IoU).
+                Default 0.7 corresponds to a minimum IoU of 0.3.
+            max_cosine_distance (float, optional):
+                Appearance-feature gate threshold.  ``1.0`` (default)
+                disables appearance-based matching entirely.
+            nn_budget (int | None, optional):
+                Maximum appearance features stored per track.
+                ``None`` = unlimited.
+            show_progress (bool, optional):
+                If ``True``, show the shared pycasa progress bar while running
+                per-frame tracking.
+            verbose (bool, optional):
+                If ``True``, print concise runtime start/end summaries.
+
+        Returns:
+            Casa:
+                The same fluent ``Casa`` session instance.
+
+        Notes:
+            Writes per-source tracks to ``casa['tracks']['deepsort'][source]``
+            and stores invocation metadata in ``casa['meta']['last_tracking']``.
+
+        Examples:
+            >>> session = session.tracking.deepsort(skip_gt=False)
+        """
+        from ...tracking import deepsort as _deepsort
+
+        return self._session._sync_from(
+            _deepsort(
+                self._session._as_dict(),
+                skip_gt=skip_gt,
+                max_age=max_age,
+                n_init=n_init,
+                max_iou_distance=max_iou_distance,
+                max_cosine_distance=max_cosine_distance,
+                nn_budget=nn_budget,
+                show_progress=show_progress,
+                verbose=verbose,
+            )
+        )
+
     def sort(
         self,
         skip_gt: bool = False,
