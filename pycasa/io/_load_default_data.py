@@ -11,6 +11,7 @@ _VIDEO_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.avi"
 _VIDEO_META_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.json"
 _GROUNDTRUTH_DIR_NAME = "sys-casa_sub-HC004_ses-01_run-005_gt"
 _README_NAME = "README.md"
+_HSTLI_UM_PER_PX = 0.24
 
 
 def _resolve_data_root(path: str | None) -> Path:
@@ -172,6 +173,11 @@ def load_default_data(
             "Loading default session video and groundtruth: "
             f"{paths['video_path'].name}"
         )
+
+    if um_per_px is None:
+        um_per_px = _HSTLI_UM_PER_PX
+        if verbose:
+            print(f"um_per_px automatically set to {_HSTLI_UM_PER_PX}.")
 
     return load_video(
         video_path=str(paths["video_path"]),

@@ -273,10 +273,28 @@ class _SessionBinarizationNamespace:
             )
         )
 
-    def urbano(self, *, show_progress: bool = True, verbose: bool = True) -> "Casa":
-        """Run the placeholder Urbano-style binarization implementation.
+    def urbano(
+        self,
+        weight: float = 1.0,
+        gaussian_size: int = 11,
+        gaussian_iters: int = 5,
+        log_size: int = 9,
+        *,
+        show_progress: bool = True,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Run the Urbano et al. (2017) binarization pipeline on the current video.
 
         Parameters:
+            weight (float, optional):
+                Multiplier applied to Otsu's per-frame threshold. Values > 1
+                raise the threshold (less foreground); values < 1 lower it.
+            gaussian_size (int, optional):
+                Side length in pixels of the Gaussian kernel (paper: 11).
+            gaussian_iters (int, optional):
+                Number of times the Gaussian filter is applied (paper: 5).
+            log_size (int, optional):
+                Side length in pixels of the LoG kernel (paper: 9).
             show_progress (bool, optional):
                 If ``True``, show the shared pycasa progress bar while
                 processing frames.
@@ -294,8 +312,7 @@ class _SessionBinarizationNamespace:
                 If ``casa["video"]["original_video"]`` is not a numpy array.
 
         Notes:
-            - This is currently a placeholder implementation that writes
-              zero-valued binary frames.
+            - Pipeline: Gaussian (×N) → LoG → Otsu×weight → erosion 5×5 → dilation 3×3.
             - Writes ``casa["video"]["binary_video"]`` and
               ``casa["video"]["binary_type"] = "urbano"``.
             - Updates ``casa["meta"]["last_preprocessing"]``.
@@ -308,6 +325,10 @@ class _SessionBinarizationNamespace:
         return self._session._sync_from(
             urbano(
                 self._session._as_dict(),
+                weight=weight,
+                gaussian_size=gaussian_size,
+                gaussian_iters=gaussian_iters,
+                log_size=log_size,
                 show_progress=show_progress,
                 verbose=verbose,
             )

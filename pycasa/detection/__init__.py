@@ -19,6 +19,7 @@ Methods:
 
 from ._detect_moving_cells import detect_moving_cells
 from ._digital_washing import digital_washing
+from ._urbano import urbano_detection
 from ._yolo import yolo
 
-__all__ = ["detect_moving_cells", "digital_washing", "yolo"]
+__all__ = ["detect_moving_cells", "digital_washing", "urbano_detection", "yolo"]

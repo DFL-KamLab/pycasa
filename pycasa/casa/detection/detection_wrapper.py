@@ -182,3 +182,61 @@ class _SessionDetectionNamespace:
                 verbose=verbose,
             )
         )
+
+    def urbano_detection(
+        self,
+        weight: float = 1.0,
+        gaussian_size: int = 11,
+        gaussian_iters: int = 5,
+        log_size: int = 9,
+        min_pixels: int = 5,
+        *,
+        show_progress: bool = True,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Run Urbano et al. (2017) LoG-based sperm detection on the current video.
+
+        Parameters:
+            weight (float, optional):
+                Multiplier applied to Otsu's per-frame threshold. Values > 1
+                raise the threshold (fewer detections); values < 1 lower it.
+            gaussian_size (int, optional):
+                Side length in pixels of the Gaussian kernel (paper: 11).
+            gaussian_iters (int, optional):
+                Number of times the Gaussian filter is applied (paper: 5).
+            log_size (int, optional):
+                Side length in pixels of the LoG kernel (paper: 9).
+            min_pixels (int, optional):
+                Minimum connected-component area in pixels to keep as a
+                detection (paper: 5).
+            show_progress (bool, optional):
+                If ``True``, show the shared pycasa progress bar while
+                processing frames.
+            verbose (bool, optional):
+                If ``True``, print concise runtime start/end summaries.
+
+        Returns:
+            Casa:
+                The same fluent ``Casa`` session instance.
+
+        Notes:
+            Detections are stored under
+            ``casa["detections"]["urbano_detection"]``.
+
+        Examples:
+            >>> session = session.detection.urbano_detection()
+        """
+        from ...detection import urbano_detection as _urbano_detection
+
+        return self._session._sync_from(
+            _urbano_detection(
+                self._session._as_dict(),
+                weight=weight,
+                gaussian_size=gaussian_size,
+                gaussian_iters=gaussian_iters,
+                log_size=log_size,
+                min_pixels=min_pixels,
+                show_progress=show_progress,
+                verbose=verbose,
+            )
+        )
