@@ -12,6 +12,7 @@ _IMAGE_ALIASES = {
     "binarized": ("binary_video",),
     "binary": ("binary_video",),
     "moving_cells": ("binarized_moving_cells_video",),
+    "digital_washing": ("digital_washing_washed_video",),
 }
 
 

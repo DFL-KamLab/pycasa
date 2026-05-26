@@ -90,7 +90,7 @@ def _sauvola_threshold(image: np.ndarray, window: tuple[int, int], k: float) -> 
 
 
 def _log_based_binarization(frame: np.ndarray) -> np.ndarray:
-    """Build log-filter-inspired binary mask from one grayscale frame."""
+    """Background binarization via LoG + Otsu (Section 3.1.2 of paper)."""
     scipy_ndimage = _ensure_import("scipy.ndimage", pip_name="scipy")
     skimage_filters = _ensure_import("skimage.filters", pip_name="scikit-image")
     skimage_morphology = _ensure_import("skimage.morphology", pip_name="scikit-image")
@@ -100,7 +100,7 @@ def _log_based_binarization(frame: np.ndarray) -> np.ndarray:
     skimage_util = _ensure_import("skimage.util", pip_name="scikit-image")
 
     binary_fill_holes = scipy_ndimage.binary_fill_holes
-    gaussian = skimage_filters.gaussian
+    gaussian_laplace = scipy_ndimage.gaussian_laplace
     threshold_otsu = skimage_filters.threshold_otsu
     binary_dilation = skimage_morphology.binary_dilation
     binary_erosion = skimage_morphology.binary_erosion
@@ -110,11 +110,16 @@ def _log_based_binarization(frame: np.ndarray) -> np.ndarray:
 
     image = np.asarray(frame, dtype=np.uint8)
     image_float = img_as_float(image)
-    blurred = gaussian(image_float, sigma=0.40, preserve_range=True)
-    image_log = -(blurred - image_float)
-    image_log_filled = binary_fill_holes(image_log > np.mean(image_log))
-    threshold = float(threshold_otsu(image_log_filled.astype(float)))
-    binary = image_log_filled.astype(float) > threshold
+    # Paper: LoG filter (10×10 kernel, σ²=0.4 → σ≈0.632).
+    # gaussian_laplace gives negative response at bright blob centers → negate.
+    sigma_log = float(np.sqrt(0.4))
+    image_log = -gaussian_laplace(image_float, sigma=sigma_log)
+    image_log_pos = np.clip(image_log, 0.0, None)
+    mx = float(image_log_pos.max())
+    image_log_u8 = ((image_log_pos / mx) * 255).astype(np.uint8) if mx > 0 else image_log_pos.astype(np.uint8)
+    # Paper: Otsu threshold first, then fill holes, then erosion + dilation with 2×2 disk.
+    thr = float(threshold_otsu(image_log_u8)) if int(image_log_u8.max()) > 0 else 0.0
+    binary = image_log_u8 > thr
     binary_filled = binary_fill_holes(binary)
     eroded = binary_erosion(binary_filled, disk(2))
     dilated = binary_dilation(eroded, disk(2))
@@ -172,6 +177,56 @@ def _motion_background_separation(
     return output
 
 
+def _create_washed_video(
+    original_video: np.ndarray,
+    motion_mask: np.ndarray,
+    decisions: np.ndarray,
+    initial_frame: int,
+    number_training_frames: int,
+) -> np.ndarray:
+    """Return original video with non-sperm regions blacked out (Fig. 12c of paper).
+
+    SM class (motion pixels) and SD class (accepted background detections) are
+    preserved; class O pixels are set to zero.
+    """
+    from skimage.draw import ellipse as draw_ellipse
+
+    num_frames = int(original_video.shape[0])
+    H = int(original_video.shape[1])
+    W = int(original_video.shape[2])
+    washed = np.zeros_like(original_video)
+    start_local = int(number_training_frames)
+
+    for local_idx in range(start_local, num_frames):
+        global_frame = initial_frame + local_idx
+        sm_mask = motion_mask[local_idx].astype(bool)
+
+        sd_mask = np.zeros((H, W), dtype=bool)
+        if decisions.size > 0:
+            frame_dets = decisions[decisions[:, 2] == float(global_frame)]
+            for det in frame_dets:
+                x_col, y_row = float(det[0]), float(det[1])
+                minor_r, major_r = float(det[3]), float(det[4])
+                r_radius = max(int(round(minor_r * 1.5)), 5)
+                c_radius = max(int(round(major_r * 1.5)), 5)
+                rr, cc = draw_ellipse(
+                    int(round(y_row)) - 1,
+                    int(round(x_col)) - 1,
+                    r_radius,
+                    c_radius,
+                    shape=(H, W),
+                )
+                sd_mask[rr, cc] = True
+
+        combined = sm_mask | sd_mask
+        if original_video.ndim == 4:
+            washed[local_idx] = original_video[local_idx] * combined[:, :, np.newaxis]
+        else:
+            washed[local_idx] = original_video[local_idx] * combined
+
+    return washed
+
+
 def _crop_around_detected_cells(gray_image: np.ndarray, x_center: float, y_center: float) -> np.ndarray:
     """Crop a fixed 60x60 patch around the detected centroid."""
     rows, cols = gray_image.shape
@@ -188,7 +243,7 @@ def _features_and_detections(
     frame_idx: int,
     blob_min_pixel_area: int,
 ) -> np.ndarray:
-    """Extract feature rows ``[x, y, minor, major, ratio, hu_sum, frame]``."""
+    """Extract feature rows ``[x, y, half_w, half_h, aspect_ratio, hu_sum, frame]``."""
     scipy_ndimage = _ensure_import("scipy.ndimage", pip_name="scipy")
     skimage_filters = _ensure_import("skimage.filters", pip_name="scikit-image")
     skimage_measure = _ensure_import("skimage.measure", pip_name="scikit-image")
@@ -225,7 +280,7 @@ def _features_and_detections(
         resized = resize(
             cropped.astype(float),
             (int(cropped.shape[0] * 3), int(cropped.shape[1] * 3)),
-            order=1,
+            order=3,
             preserve_range=True,
             anti_aliasing=True,
         )
@@ -254,9 +309,10 @@ def _features_and_detections(
             chosen_index = 0
         chosen = local_props[chosen_index]
 
-        major = float(chosen.major_axis_length / 2.0)
-        minor = float(chosen.minor_axis_length / 2.0)
-        if major <= 0:
+        crop_min_r, crop_min_c, crop_max_r, crop_max_c = chosen.bbox
+        half_w = float((crop_max_c - crop_min_c) / 2.0 / 3.0)
+        half_h = float((crop_max_r - crop_min_r) / 2.0 / 3.0)
+        if half_w <= 0 or half_h <= 0:
             continue
 
         hu_raw = _feature_vector(sharpened.astype(float))
@@ -267,9 +323,9 @@ def _features_and_detections(
             [
                 x_center,
                 y_center,
-                minor,
-                major,
-                float(minor / major),
+                half_w,
+                half_h,
+                float(half_w / half_h),
                 hu_features,
                 float(frame_idx),
             ]
@@ -561,12 +617,21 @@ def digital_washing(
                     )
         detections[str(frame)] = frame_rows
 
+    washed_video = _create_washed_video(
+        original_video=original_video,
+        motion_mask=motion_mask,
+        decisions=decisions,
+        initial_frame=initial_frame,
+        number_training_frames=int(number_training_frames),
+    )
+
     motion_uint8 = motion_mask.astype(np.uint8) * 255
     binarized_uint8 = binarized_video.astype(np.uint8) * 255
     background_uint8 = background_video.astype(np.uint8) * 255
     casa["video"]["digital_washing_motion_video"] = motion_uint8
     casa["video"]["digital_washing_binarized_video"] = binarized_uint8
     casa["video"]["digital_washing_background_video"] = background_uint8
+    casa["video"]["digital_washing_washed_video"] = washed_video
     detections_root["digital_washing"] = detections
     tracked_sources = _resolve_sort_track_sources(casa.get("tracks", {}))
     if tracked_sources and "digital_washing" not in tracked_sources:
