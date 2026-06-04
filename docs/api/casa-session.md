@@ -17,7 +17,7 @@ import pycasa as pc
 
 self = pc.io.load_default_data()
 self.preprocessing.binarization.otsu()
-self.detection.yolov5()
+self.detection.yolo()
 ```
 
 Each method updates internal session state and returns the same `Casa` object for chaining.
@@ -26,7 +26,7 @@ Each method updates internal session state and returns the same `Casa` object fo
 
 - `self.io` — session creation and data-ingestion layer. Use this first to load video frames, optional groundtruth labels, sampling rate, and calibration metadata.
 - `self.preprocessing` — frame transformation layer. Use this to derive grayscale/normalized/binary variants before running detector and tracker stages.
-- `self.detection` — object localization layer. Produces one active predicted detection set at a time (e.g., moving-cells, digital washing, or YOLOv5).
+- `self.detection` — object localization layer. Produces one active predicted detection set at a time (e.g., moving-cells, digital washing, Urbano, or YOLO — YOLOv5 / YOLO26).
 - `self.tracking` — trajectory-building layer. Converts detections over time into track sequences.
 - `self.motility` — quantitative analysis layer. Computes motility metrics over track windows.
 - `self.assessment` — evaluation layer. Compares predicted detections with groundtruth detections.
@@ -194,7 +194,7 @@ Return `casa['assessment']`.
 
 ## Public API and Helper Rules
 
-- Use namespace methods as the stable public API (`self.detection.yolov5()`, etc.).
+- Use namespace methods as the stable public API (`self.detection.yolo()`, etc.).
 - Treat underscore-prefixed modules/functions (e.g., `pycasa._core`, helpers in `pycasa.utils`) as internal implementation details.
 - Fluent wrappers in `pycasa.casa.*` orchestrate state updates; algorithm implementations live in `pycasa.<namespace>`.
 - Session provenance is tracked through `meta["last_*"]` fields (`last_detection`, `last_tracking`, `last_motility`, `last_assessment`, `last_visualization`).

@@ -8,7 +8,7 @@ This workflow shows how to go from raw video frames to frame-linked sperm trajec
 pip install "pycasa[io,detection,tracking] @ git+https://github.com/DFL-KamLab/pycasa.git"
 ```
 
-Add `[yolo]` to the extras list if you want to use the YOLOv5 backend.
+Add `[yolo]` to the extras list if you want to use the YOLO backend (YOLOv5 or YOLO26).
 
 ---
 
@@ -48,19 +48,23 @@ pycasa provides three detection methods. Pick the one that fits your data and co
     )
     ```
 
-=== "YOLOv5"
+=== "YOLO (v5 / v26)"
 
-    Deep-learning detection using weights trained on CASA semen analysis data. Highest recall for well-resolved sperm cells. Requires `[yolo]` extra.
+    Deep-learning detection using weights trained on CASA semen analysis data. Highest recall for well-resolved sperm cells. Requires `[yolo]` extra. Pass `yolo_model="yolov5"` (default) or `yolo_model="yolo26"` to pick the architecture.
 
     ```python
     import pycasa as pc
 
     self = pc.io.load_default_data()
-    self.detection.yolov5(
-        weights="sys-casa_yolov5s.pt",  # managed weight name or local .pt path
-        conf=0.15,                       # confidence threshold
+    self.detection.yolo(
+        yolo_model="yolov5",             # "yolov5" (default) or "yolo26"
+        weights="sys-casa_yolov5s.pt",   # managed weight name or local .pt path
+        conf=0.15,                        # confidence threshold
     )
     ```
+
+!!! tip "See also"
+    `self.detection.urbano_detection(...)` is a classical Laplacian-of-Gaussian segmentation pipeline (Urbano et al. 2017) — full parameters on the [Detection API page](../api/detection.md#selfdetectionurbano_detection).
 
 ---
 
@@ -78,7 +82,10 @@ self.tracking.sort(
 ```
 
 !!! tip "Re-run sort after changing detection"
-    Tracks are keyed to the detection source they were built from. If you switch detection backends (e.g., from `moving_cells` to `yolov5`), re-run `self.tracking.sort()` to regenerate tracks from the new detections.
+    Tracks are keyed to the detection source they were built from. If you switch detection backends (e.g., from `moving_cells` to `yolo`), re-run `self.tracking.sort()` to regenerate tracks from the new detections.
+
+!!! tip "Other tracking backends"
+    `self.tracking.deepsort(...)` (SORT + appearance features) and `self.tracking.jpdaf(...)` (Joint Probabilistic Data Association, Urbano et al. 2017) are drop-in alternatives that write to the same `casa["tracks"]` schema. See the [Tracking API page](../api/tracking.md) for parameters and recommended settings.
 
 ---
 

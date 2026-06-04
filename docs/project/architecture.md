@@ -30,7 +30,7 @@ pycasa/
 ## Responsibility by Layer
 
 - `pycasa.casa.*`:
-  fluent session wrappers users call directly (`self.detection.yolov5()`, etc.).
+  fluent session wrappers users call directly (`self.detection.yolo()`, etc.).
 - `pycasa.<namespace>`:
   implementation functions for each domain area.
 - `pycasa._core`:

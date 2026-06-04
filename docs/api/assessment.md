@@ -63,7 +63,7 @@ Results are written under `casa["assessment"]`:
 **Requirement**
 
 Assessment requires:
-- Predicted detections from a detection method (e.g., `self.detection.yolov5()`), and
+- Predicted detections from a detection method (e.g., `self.detection.yolo()`), and
 - Groundtruth detections loaded via `load_default_data()` or `load_video(..., groundtruth_path=...)`.
 
 **Example**

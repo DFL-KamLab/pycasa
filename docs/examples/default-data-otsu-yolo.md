@@ -1,6 +1,6 @@
 # Example: Default Data + Otsu + YOLO
 
-This is the fastest way to get a realistic pycasa pipeline running. It uses the built-in HC004 default dataset — a publicly available semen analysis video subset — requires no local files, and exercises the most commonly used detection backend (YOLOv5).
+This is the fastest way to get a realistic pycasa pipeline running. It uses the built-in HC004 default dataset — a publicly available semen analysis video subset — requires no local files, and exercises the unified YOLO detection backend (YOLOv5 by default, with YOLO26 also supported via `yolo_model="yolo26"`).
 
 ## Install
 
@@ -23,8 +23,8 @@ self = pc.io.load_default_data()
 # Binarize the video using Otsu global thresholding
 self.preprocessing.binarization.otsu()
 
-# Run YOLOv5 inference on every frame (downloads managed weights on first run)
-self.detection.yolov5()
+# Run YOLO inference on every frame (downloads managed YOLOv5 weights on first run)
+self.detection.yolo()
 
 # Plot a single frame with bounding-box detections overlaid
 self.visualization.plot_frame(frame_index=5, show_detections=True)
@@ -56,13 +56,13 @@ Downloads (or reads from the local cache at `~/.pycasa_data`) a subset of the HC
 
 Converts the original video to grayscale first, then applies Otsu's global threshold to produce a binary (0/255 uint8) video stored as `casa["video"]["binary_video"]`. Otsu works well for semen analysis videos because the sperm cells create a bimodal intensity distribution against the bright background.
 
-**`detection.yolov5()`**
+**`detection.yolo()`**
 
-Downloads the default managed weights (`sys-casa_yolov5s.pt`, trained on CASA semen data) from HuggingFace if not already cached. Runs inference on each frame and stores normalized detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — in `casa["detections"]["yolov5"]`. Confidence threshold defaults to `0.15`.
+Runs YOLO inference. By default `yolo_model="yolov5"` and the `sys-casa_yolov5s.pt` weights (trained on CASA semen data) are downloaded from HuggingFace on first run. Each frame's detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — are stored in `casa["detections"]["yolov5"]` (or `casa["detections"]["yolo26"]` when `yolo_model="yolo26"`). Confidence threshold defaults to `0.15`.
 
 **`visualization.plot_frame(frame_index=5, show_detections=True)`**
 
-Opens a static matplotlib figure showing frame 5 of the original video with YOLOv5 bounding boxes overlaid. Useful for a quick visual sanity-check before running the full pipeline.
+Opens a static matplotlib figure showing frame 5 of the original video with YOLO bounding boxes overlaid. Useful for a quick visual sanity-check before running the full pipeline.
 
 **`self.info()`**
 
@@ -104,13 +104,14 @@ print(f"Groundtruth frames loaded: {len(gt)}")
 ## Notes
 
 - First run may trigger downloads for both the dataset and the YOLO weights. Subsequent runs use the cache and complete offline.
-- Calling a second detection method after `yolov5()` will overwrite the active predicted detections and emit a warning.
+- Calling a second detection method after `yolo()` will overwrite the active predicted detections and emit a warning.
 - The `plot_frame` call requires `matplotlib`. If you installed with `[io,yolo]`, it is already included.
+- `load_default_data()` auto-sets `um_per_px=0.24` (HSTLI value) so you can jump straight to motility computation without a separate `self.set_um_per_px(...)` call.
 
 ---
 
 ## What to try next
 
 - Add `self.tracking.sort()` after detection to get trajectories — see [Detection + SORT Tracking](detection-tracking.md).
-- Add `self.assessment.classification()` to score YOLOv5 against the bundled groundtruth — see [Motility + Assessment](motility-assessment.md).
+- Add `self.assessment.classification()` to score the YOLO output against the bundled groundtruth — see [Motility + Assessment](motility-assessment.md).
 - Swap in your own video — see [Load Custom Video](custom-video.md).

@@ -146,14 +146,15 @@ self = pc.io.load_default_data()
 self.preprocessing.grayscale()
 self.preprocessing.binarization.otsu()
 
-# 3. Detect — run YOLOv5 on every frame
-self.detection.yolov5()
+# 3. Detect — run YOLO on every frame (defaults to YOLOv5; pass yolo_model="yolo26" for YOLO26)
+self.detection.yolo()
 
 # 4. Track — link detections into trajectories with SORT
+#    (deepsort or jpdaf are drop-in alternatives — see the Tracking API page)
 self.tracking.sort()
 
 # 5. Motility — compute standard CASA metrics per track window
-self.set_um_per_px(0.24)
+#    um_per_px is auto-set to 0.24 by load_default_data(); call self.set_um_per_px(...) only for custom videos
 self.motility.standard_motility_parameters()
 
 # 6. Assess — compare predictions against groundtruth

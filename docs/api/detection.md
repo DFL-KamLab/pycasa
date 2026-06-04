@@ -20,7 +20,8 @@ All coordinates are normalized to `[0, 1]` relative to frame width/height.
 
 - `self.detection.detect_moving_cells(...)`
 - `self.detection.digital_washing(...)`
-- `self.detection.yolov5(...)`
+- `self.detection.urbano_detection(...)`
+- `self.detection.yolo(...)`
 
 ---
 
@@ -143,35 +144,108 @@ self.detection.digital_washing(
 
 ---
 
-## `self.detection.yolov5(...)`
+## `self.detection.urbano_detection(...)`
 
-Run YOLOv5 object detection on the in-memory video using managed weights downloaded from HuggingFace or a custom local checkpoint.
+Detect cells using the Urbano et al. (2017) Laplacian-of-Gaussian (LoG) segmentation pipeline.
+
+The algorithm operates in seven steps per frame:
+
+1. Gaussian filter applied `gaussian_iters` times.
+2. Laplacian-of-Gaussian (Mexican-hat) filter.
+3. Per-frame Otsu threshold scaled by `weight`.
+4. Morphological erosion (5×5 diamond structuring element).
+5. Morphological dilation (3×3 diamond structuring element).
+6. Connected-component labeling (8-connectivity).
+7. Centroid extraction with `min_pixels` area filter.
 
 **Parameters**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `weights` | `str` | `"sys-casa_yolov5s.pt"` | Weight selector. Pass a managed weight name (see table below) for automatic download/caching, or a path to a local `.pt` file. |
+| `weight` | `float` | `1.0` | Multiplier applied to the per-frame Otsu threshold. Values > 1 raise the threshold (fewer detections); values < 1 lower it. |
+| `gaussian_size` | `int` | `11` | Side length in pixels of the Gaussian kernel (paper value). |
+| `gaussian_iters` | `int` | `5` | Number of times the Gaussian filter is applied (paper value). |
+| `log_size` | `int` | `9` | Side length in pixels of the LoG kernel (paper value). |
+| `min_pixels` | `int` | `5` | Minimum connected-component area in pixels to keep as a detection (paper value). Smaller groups are discarded. |
+| `show_progress` | `bool` | `True` | Show the pycasa progress bar while processing frames. |
+| `verbose` | `bool` | `True` | Print start/end summaries. Does not suppress warnings. |
+
+**Output**
+
+Detections are stored in the session under `casa["detections"]["urbano_detection"]` and accessible via `self.get_detections()`. Bounding boxes are the actual pixel extents of each connected component; coordinates are normalized (0–1) by frame width/height.
+
+**Returns**
+
+`Casa` — the same session instance.
+
+**Raises**
+
+- `ValueError` — if `casa["video"]["original_video"]` is missing or has invalid shape.
+
+**Example**
+
+```python
+# Default paper-derived parameters
+self.detection.urbano_detection()
+
+# Looser threshold and stricter minimum size
+self.detection.urbano_detection(weight=0.8, min_pixels=10)
+```
+
+**Citation**
+
+> Urbano, L.F., Masson, P., VerMilyea, M., & Kam, M. (2017). **Automatic Tracking and Motility Analysis of Human Sperm in Time-Lapse Images.** *IEEE Transactions on Medical Imaging*, 36(3), 792–801. [DOI:10.1109/TMI.2016.2630720](https://doi.org/10.1109/TMI.2016.2630720)
+
+---
+
+## `self.detection.yolo(...)`
+
+Run YOLO object detection on the in-memory video using managed weights downloaded from HuggingFace or a custom local checkpoint. Supports two YOLO architectures: **YOLOv5** and **YOLO26**.
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `yolo_model` | `str` | `"yolov5"` | YOLO architecture to use. One of `"yolov5"` or `"yolo26"`. |
+| `weights` | `str \| None` | `None` | Managed weight name or a custom local `.pt` path. When `None`, the default managed weight for the chosen `yolo_model` is used (see defaults below). |
 | `conf` | `float` | `0.15` | Detection confidence threshold. Only detections with confidence ≥ this value are kept. |
 | `download` | `bool` | `True` | Automatically download missing managed weights from the dataset repository. |
 | `force_download` | `bool` | `False` | Re-download managed weights even when a cached local file exists. |
 | `show_progress` | `bool` | `True` | Show the pycasa progress bar during per-frame inference. |
 | `verbose` | `bool` | `True` | Print start/end summaries and confidence statistics. Does not suppress warnings. |
 
+**Default Weights**
+
+| `yolo_model` | Default weight |
+|---|---|
+| `"yolov5"` | `sys-casa_yolov5s.pt` |
+| `"yolo26"` | `sys-casa_yolo26n.pt` |
+
 **Managed Weight Names**
 
-Two weight sets are available. All names follow the pattern `<set>_<model>.pt`:
+Two weight sets (`sys-casa`, `sys-opt`) are available for each architecture across five sizes (n, s, m, l, x).
 
-| Set | Models | Description |
-|-----|--------|-------------|
-| `sys-casa` | `yolov5n`, `yolov5s`, `yolov5m`, `yolov5l`, `yolov5x` | Weights trained on the CASA semen analysis dataset. |
-| `sys-opt` | `yolov5n`, `yolov5s`, `yolov5m`, `yolov5l`, `yolov5x` | Optimized variant weights. |
+**YOLOv5 weights** (downloaded automatically from HuggingFace):
 
-Full list: `sys-casa_yolov5n.pt`, `sys-casa_yolov5s.pt`, `sys-casa_yolov5m.pt`, `sys-casa_yolov5l.pt`, `sys-casa_yolov5x.pt`, `sys-opt_yolov5n.pt`, `sys-opt_yolov5s.pt`, `sys-opt_yolov5m.pt`, `sys-opt_yolov5l.pt`, `sys-opt_yolov5x.pt`
+| Set | Models |
+|-----|--------|
+| `sys-casa` | `yolov5n`, `yolov5s`, `yolov5m`, `yolov5l`, `yolov5x` |
+| `sys-opt` | `yolov5n`, `yolov5s`, `yolov5m`, `yolov5l`, `yolov5x` |
+
+Full list: `sys-casa_yolov5n.pt`, `sys-casa_yolov5s.pt`, `sys-casa_yolov5m.pt`, `sys-casa_yolov5l.pt`, `sys-casa_yolov5x.pt`, `sys-opt_yolov5n.pt`, `sys-opt_yolov5s.pt`, `sys-opt_yolov5m.pt`, `sys-opt_yolov5l.pt`, `sys-opt_yolov5x.pt`.
+
+**YOLO26 weights** (not yet public — contact [Atilla Sivri](mailto:atilla.sivri@njit.edu) or [Ludvik Alkhoury](mailto:ludvik.alkhoury@gmail.com) for access):
+
+| Set | Models |
+|-----|--------|
+| `sys-casa` | `yolo26n`, `yolo26s`, `yolo26m`, `yolo26l`, `yolo26x` |
+| `sys-opt` | `yolo26n`, `yolo26s`, `yolo26m`, `yolo26l`, `yolo26x` |
+
+Full list: `sys-casa_yolo26n.pt`, `sys-casa_yolo26s.pt`, `sys-casa_yolo26m.pt`, `sys-casa_yolo26l.pt`, `sys-casa_yolo26x.pt`, `sys-opt_yolo26n.pt`, `sys-opt_yolo26s.pt`, `sys-opt_yolo26m.pt`, `sys-opt_yolo26l.pt`, `sys-opt_yolo26x.pt`.
 
 **Output**
 
-Detections are stored in the session as frame-indexed normalized detection rows and are accessible via `self.get_detections()`.
+Detections are stored in the session under `casa["detections"][yolo_model]` (so `casa["detections"]["yolov5"]` or `casa["detections"]["yolo26"]` depending on the chosen architecture) and accessible via `self.get_detections()`.
 
 Detection output format: `[class_id, norm_center_x, norm_center_y, norm_width, norm_height]`
 
@@ -184,25 +258,28 @@ Detection output format: `[class_id, norm_center_x, norm_center_y, norm_width, n
 - `ImportError` — if optional YOLO runtime dependencies (`torch`, `torchvision`, etc.) are not installed.
 - `FileNotFoundError` — if a custom weight path does not exist, or if managed weights are not cached and `download=False`.
 - `TypeError` — if `original_video` exists but is not a numpy array.
-- `ValueError` — if `weights` is an empty string.
+- `ValueError` — if `yolo_model` is not `"yolov5"` or `"yolo26"`, or if `weights` is an empty string.
 
 **Notes**
 
-- Managed weights are downloaded to `yolov5-weights/` relative to the project root.
-- For standard `.pt` checkpoints (non-TorchScript), a local YOLOv5 source checkout is required. Set the `PYCASA_YOLOV5_REPO` environment variable to point to it, or clone YOLOv5 as a sibling directory (`../yolov5`).
-- The `delete_temp` parameter is a legacy compatibility flag and has no effect in the current implementation.
+- Managed YOLOv5 weights are downloaded to `yolov5-weights/` and YOLO26 weights to `yolo26-weights/`, both relative to the project root.
+- For standard YOLOv5 `.pt` checkpoints (non-TorchScript), a local YOLOv5 source checkout is required. Set the `PYCASA_YOLOV5_REPO` environment variable to point to it, or clone YOLOv5 as a sibling directory (`../yolov5`).
+- Passing a weight name whose architecture mismatches `yolo_model` (e.g. a `yolo26` weight with `yolo_model="yolov5"`) emits a yellow warning.
 
 **Example**
 
 ```python
-# Default managed weights
-self.detection.yolov5()
+# Default: YOLOv5 with sys-casa_yolov5s.pt
+self.detection.yolo()
 
-# Larger model with lower confidence threshold
-self.detection.yolov5(weights="sys-opt_yolov5m.pt", conf=0.10)
+# YOLO26 with the default sys-casa_yolo26n.pt weight
+self.detection.yolo(yolo_model="yolo26")
+
+# Larger YOLOv5 model with lower confidence threshold
+self.detection.yolo(yolo_model="yolov5", weights="sys-opt_yolov5m.pt", conf=0.10)
 
 # Custom local checkpoint
-self.detection.yolov5(weights="/path/to/my_weights.pt", download=False)
+self.detection.yolo(weights="/path/to/my_weights.pt", download=False)
 ```
 
 ## Output Behavior

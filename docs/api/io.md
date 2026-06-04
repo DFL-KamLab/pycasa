@@ -84,7 +84,7 @@ The cache root is resolved in this order:
 | `initial_frame` | `int` | `0` | First frame index to read (0-based). |
 | `final_frame` | `int \| None` | `100` | Last frame index to read (0-based, inclusive). Defaults to frame 100. |
 | `sampling_rate` | `float \| None` | `None` | Optional FPS override forwarded to `load_video`. |
-| `um_per_px` | `float \| None` | `None` | Optional microns-per-pixel metadata value. |
+| `um_per_px` | `float \| None` | `None` | Microns-per-pixel calibration. When `None`, the HSTLI dataset value `0.24` is set automatically (and a one-line confirmation is printed when `verbose=True`). Pass an explicit value to override. |
 | `magnification` | `str \| None` | `None` | Optional magnification metadata value. |
 | `verbose` | `bool` | `True` | Print concise cache/download resolution summaries. |
 
@@ -105,6 +105,8 @@ Only this subset of the dataset is downloaded (not the full repository):
 - `sys-casa_sub-HC004_ses-01_run-005_video.json`
 - `sys-casa_sub-HC004_ses-01_run-005_gt/` (groundtruth directory)
 - `README.md` (session folder)
+
+Pixel calibration (`um_per_px`) is set automatically to `0.24` — the value matching the HSTLI HC004 acquisition — when not provided. Downstream motility computation will therefore work without a manual `self.set_um_per_px(...)` call. Pass an explicit `um_per_px` argument to override.
 
 **Example**
 

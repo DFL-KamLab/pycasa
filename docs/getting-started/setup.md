@@ -33,9 +33,9 @@ pycasa is structured around **optional extras** — install only the dependencie
 |-------|----------------|-----------------|
 | *(none)* | Core session model, basic utilities | `pip install "pycasa @ git+..."` |
 | `io` | `load_default_data()` with HuggingFace Hub downloads | `pip install "pycasa[io] @ git+..."` |
-| `detection` | `detect_moving_cells()` and `digital_washing()` (`scikit-image`, `scipy`) | `pip install "pycasa[detection] @ git+..."` |
-| `tracking` | `tracking.sort()` (`scipy` assignment solver) | `pip install "pycasa[tracking] @ git+..."` |
-| `yolo` | `detection.yolov5()` (`torch`, `torchvision`, `ultralytics`, `matplotlib`) | `pip install "pycasa[yolo] @ git+..."` |
+| `detection` | `detect_moving_cells()`, `digital_washing()`, `urbano_detection()` (`scikit-image`, `scipy`) | `pip install "pycasa[detection] @ git+..."` |
+| `tracking` | `tracking.sort()`, `tracking.deepsort()`, `tracking.jpdaf()` (`scipy` assignment solver; DeepSORT clones `nwojke/deep_sort` on first use) | `pip install "pycasa[tracking] @ git+..."` |
+| `yolo` | `detection.yolo()` — YOLOv5 and YOLO26 (`torch`, `torchvision`, `ultralytics`, `matplotlib`) | `pip install "pycasa[yolo] @ git+..."` |
 | `io,detection,tracking,yolo` | Full pipeline (all of the above) | `pip install "pycasa[io,detection,tracking,yolo] @ git+..."` |
 
 ---
