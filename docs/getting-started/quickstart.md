@@ -20,7 +20,7 @@ import pycasa as pc
 
 self = pc.io.load_default_data()          # load HC004 subset; returns a Casa session
 self.preprocessing.binarization.otsu()    # build a binary video via Otsu thresholding
-self.detection.yolo()                     # run YOLO inference on every frame (YOLOv5 by default)
+self.detection.yolo()                     # run YOLO inference on every frame (YOLO26 by default)
 self.info()                               # print a concise session summary
 ```
 
@@ -30,7 +30,7 @@ self.info()                               # print a concise session summary
 |------|-------------|
 | `load_default_data()` | Downloads (or reads from cache) the HC004 video and groundtruth annotations; stores frames in `casa["video"]["original_video"]`. |
 | `binarization.otsu()` | Converts the video to grayscale then applies Otsu global thresholding; stores the result as `binary_video`. |
-| `detection.yolo()` | Downloads managed weights if needed and runs inference frame-by-frame; stores normalized detections in `casa["detections"]["yolov5"]` (or `["yolo26"]` when `yolo_model="yolo26"`). |
+| `detection.yolo()` | Downloads managed weights if needed and runs inference frame-by-frame; stores normalized detections in `casa["detections"]["yolo26"]` by default (or `["yolov5"]` when `yolo_model="yolov5"`). |
 | `self.info()` | Prints counts of loaded arrays, detected objects, and metadata keys so you can confirm each stage ran. |
 
 ---

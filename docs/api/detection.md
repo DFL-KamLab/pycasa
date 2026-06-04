@@ -206,7 +206,7 @@ Run YOLO object detection on the in-memory video using managed weights downloade
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `yolo_model` | `str` | `"yolov5"` | YOLO architecture to use. One of `"yolov5"` or `"yolo26"`. |
+| `yolo_model` | `str` | `"yolo26"` | YOLO architecture to use. One of `"yolov5"` or `"yolo26"`. |
 | `weights` | `str \| None` | `None` | Managed weight name or a custom local `.pt` path. When `None`, the default managed weight for the chosen `yolo_model` is used (see defaults below). |
 | `conf` | `float` | `0.15` | Detection confidence threshold. Only detections with confidence ≥ this value are kept. |
 | `download` | `bool` | `True` | Automatically download missing managed weights from the dataset repository. |
@@ -234,7 +234,7 @@ Two weight sets (`sys-casa`, `sys-opt`) are available for each architecture acro
 
 Full list: `sys-casa_yolov5n.pt`, `sys-casa_yolov5s.pt`, `sys-casa_yolov5m.pt`, `sys-casa_yolov5l.pt`, `sys-casa_yolov5x.pt`, `sys-opt_yolov5n.pt`, `sys-opt_yolov5s.pt`, `sys-opt_yolov5m.pt`, `sys-opt_yolov5l.pt`, `sys-opt_yolov5x.pt`.
 
-**YOLO26 weights** (not yet public — contact [Atilla Sivri](mailto:atilla.sivri@njit.edu) or [Ludvik Alkhoury](mailto:ludvik.alkhoury@gmail.com) for access):
+**YOLO26 weights** (downloaded automatically from HuggingFace):
 
 | Set | Models |
 |-----|--------|
@@ -269,11 +269,11 @@ Detection output format: `[class_id, norm_center_x, norm_center_y, norm_width, n
 **Example**
 
 ```python
-# Default: YOLOv5 with sys-casa_yolov5s.pt
+# Default: YOLO26 with sys-casa_yolo26n.pt
 self.detection.yolo()
 
-# YOLO26 with the default sys-casa_yolo26n.pt weight
-self.detection.yolo(yolo_model="yolo26")
+# Explicit YOLOv5 with the default sys-casa_yolov5s.pt weight
+self.detection.yolo(yolo_model="yolov5")
 
 # Larger YOLOv5 model with lower confidence threshold
 self.detection.yolo(yolo_model="yolov5", weights="sys-opt_yolov5m.pt", conf=0.10)

@@ -146,7 +146,7 @@ self = pc.io.load_default_data()
 self.preprocessing.grayscale()
 self.preprocessing.binarization.otsu()
 
-# 3. Detect — run YOLO on every frame (defaults to YOLOv5; pass yolo_model="yolo26" for YOLO26)
+# 3. Detect — run YOLO on every frame (defaults to YOLO26; pass yolo_model="yolov5" for YOLOv5)
 self.detection.yolo()
 
 # 4. Track — link detections into trajectories with SORT

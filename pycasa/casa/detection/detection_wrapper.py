@@ -110,7 +110,7 @@ class _SessionDetectionNamespace:
 
     def yolo(
         self,
-        yolo_model: str = "yolov5",
+        yolo_model: str = "yolo26",
         weights: str | None = None,
         conf: float = 0.15,
         download: bool = True,
@@ -134,8 +134,7 @@ class _SessionDetectionNamespace:
 
                 Default: ``sys-casa_yolov5s.pt``
 
-                **YOLO26 managed weights** (not yet public — contact
-                atilla.sivri@njit.edu or ludvik.alkhoury@gmail.com):
+                **YOLO26 managed weights** (downloaded automatically):
 
                 - ``sys-casa_yolo26n/s/m/l/x.pt``
                 - ``sys-opt_yolo26n/s/m/l/x.pt``

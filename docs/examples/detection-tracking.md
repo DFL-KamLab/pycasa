@@ -50,15 +50,15 @@ pycasa provides three detection methods. Pick the one that fits your data and co
 
 === "YOLO (v5 / v26)"
 
-    Deep-learning detection using weights trained on CASA semen analysis data. Highest recall for well-resolved sperm cells. Requires `[yolo]` extra. Pass `yolo_model="yolov5"` (default) or `yolo_model="yolo26"` to pick the architecture.
+    Deep-learning detection using weights trained on CASA semen analysis data. Highest recall for well-resolved sperm cells. Requires `[yolo]` extra. Pass `yolo_model="yolo26"` (default) or `yolo_model="yolov5"` to pick the architecture.
 
     ```python
     import pycasa as pc
 
     self = pc.io.load_default_data()
     self.detection.yolo(
-        yolo_model="yolov5",             # "yolov5" (default) or "yolo26"
-        weights="sys-casa_yolov5s.pt",   # managed weight name or local .pt path
+        yolo_model="yolo26",             # "yolo26" (default) or "yolov5"
+        weights="sys-casa_yolo26n.pt",   # managed weight name or local .pt path
         conf=0.15,                        # confidence threshold
     )
     ```

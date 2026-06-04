@@ -221,9 +221,10 @@ def _resolve_managed_weight_path(
 
     model_variant, weight_set = _split_managed_weight(name)
     dirname = _weights_dirname_for(yolo_model)
-    remote_filenames = [f"{dirname}/{weight_set}_{model_variant}.pt"]
-    if yolo_model == "yolov5":
-        remote_filenames.append(f"{dirname}/{weight_set}/{weight_set}_{model_variant}.pt")
+    remote_filenames = [
+        f"{dirname}/{weight_set}_{model_variant}.pt",
+        f"{dirname}/{weight_set}/{weight_set}_{model_variant}.pt",
+    ]
 
     last_error: Exception | None = None
     for remote in remote_filenames:
@@ -609,7 +610,7 @@ def _summarize_confidence_scores(
 # ---------------------------------------------------------------------------
 def yolo(
     casa: dict[str, Any],
-    yolo_model: str = "yolov5",
+    yolo_model: str = "yolo26",
     weights: str | None = None,
     conf: float = 0.15,
     download: bool = True,
@@ -641,9 +642,7 @@ def yolo(
             - ``sys-opt_yolov5l.pt``
             - ``sys-opt_yolov5x.pt``
 
-            **YOLO26 managed weights** (not yet public — contact
-            Atilla Sivri atilla.sivri@njit.edu or
-            Ludvik Alkhoury ludvik.alkhoury@gmail.com for access):
+            **YOLO26 managed weights** (downloaded automatically from HuggingFace):
 
             - ``sys-casa_yolo26n.pt`` — nano *(default)*
             - ``sys-casa_yolo26s.pt`` — small
@@ -721,17 +720,6 @@ def yolo(
         model_name, weight_name = _split_managed_weight(managed_weights)
 
     conf_threshold = float(conf)
-
-    # yolo26 managed weights are not yet public on HuggingFace.
-    if yolo_model == "yolo26" and is_managed:
-        _warn_yellow(
-            "YOLO26 weights are not yet publicly available on HuggingFace. "
-            "Use a custom local weights path instead. "
-            "To obtain access to unpublished weights, contact: "
-            "Atilla Sivri (atilla.sivri@njit.edu) or "
-            "Ludvik Alkhoury (ludvik.alkhoury@gmail.com)."
-        )
-        return casa
 
     if casa.get("video", {}).get("original_video") is None:
         if verbose:

@@ -1,6 +1,6 @@
 # Example: Default Data + Otsu + YOLO
 
-This is the fastest way to get a realistic pycasa pipeline running. It uses the built-in HC004 default dataset — a publicly available semen analysis video subset — requires no local files, and exercises the unified YOLO detection backend (YOLOv5 by default, with YOLO26 also supported via `yolo_model="yolo26"`).
+This is the fastest way to get a realistic pycasa pipeline running. It uses the built-in HC004 default dataset — a publicly available semen analysis video subset — requires no local files, and exercises the unified YOLO detection backend (YOLO26 by default, with YOLOv5 available via `yolo_model="yolov5"`).
 
 ## Install
 
@@ -23,7 +23,7 @@ self = pc.io.load_default_data()
 # Binarize the video using Otsu global thresholding
 self.preprocessing.binarization.otsu()
 
-# Run YOLO inference on every frame (downloads managed YOLOv5 weights on first run)
+# Run YOLO inference on every frame (downloads managed YOLO26 weights on first run)
 self.detection.yolo()
 
 # Plot a single frame with bounding-box detections overlaid
@@ -58,7 +58,7 @@ Converts the original video to grayscale first, then applies Otsu's global thres
 
 **`detection.yolo()`**
 
-Runs YOLO inference. By default `yolo_model="yolov5"` and the `sys-casa_yolov5s.pt` weights (trained on CASA semen data) are downloaded from HuggingFace on first run. Each frame's detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — are stored in `casa["detections"]["yolov5"]` (or `casa["detections"]["yolo26"]` when `yolo_model="yolo26"`). Confidence threshold defaults to `0.15`.
+Runs YOLO inference. By default `yolo_model="yolo26"` and the `sys-casa_yolo26n.pt` weights (trained on CASA semen data) are downloaded from HuggingFace on first run. Each frame's detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — are stored in `casa["detections"]["yolo26"]` (or `casa["detections"]["yolov5"]` when `yolo_model="yolov5"`). Confidence threshold defaults to `0.15`.
 
 **`visualization.plot_frame(frame_index=5, show_detections=True)`**
 
