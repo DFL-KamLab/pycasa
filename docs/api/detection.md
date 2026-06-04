@@ -156,7 +156,7 @@ The algorithm operates in seven steps per frame:
 4. Morphological erosion (5×5 diamond structuring element).
 5. Morphological dilation (3×3 diamond structuring element).
 6. Connected-component labeling (8-connectivity).
-7. Centroid extraction with `min_pixels` area filter.
+7. Centroid extraction with `blob_min_pixel_area` filter.
 
 **Parameters**
 
@@ -166,7 +166,7 @@ The algorithm operates in seven steps per frame:
 | `gaussian_size` | `int` | `11` | Side length in pixels of the Gaussian kernel (paper value). |
 | `gaussian_iters` | `int` | `5` | Number of times the Gaussian filter is applied (paper value). |
 | `log_size` | `int` | `9` | Side length in pixels of the LoG kernel (paper value). |
-| `min_pixels` | `int` | `5` | Minimum connected-component area in pixels to keep as a detection (paper value). Smaller groups are discarded. |
+| `blob_min_pixel_area` | `int` | `5` | Minimum connected-component area in pixels to keep as a detection (paper value). Smaller groups are discarded. Same parameter name as `detect_moving_cells` and `digital_washing`. |
 | `show_progress` | `bool` | `True` | Show the pycasa progress bar while processing frames. |
 | `verbose` | `bool` | `True` | Print start/end summaries. Does not suppress warnings. |
 
@@ -189,7 +189,7 @@ Detections are stored in the session under `casa["detections"]["urbano_detection
 self.detection.urbano_detection()
 
 # Looser threshold and stricter minimum size
-self.detection.urbano_detection(weight=0.8, min_pixels=10)
+self.detection.urbano_detection(weight=0.8, blob_min_pixel_area=10)
 ```
 
 **Citation**

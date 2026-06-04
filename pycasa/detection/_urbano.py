@@ -66,7 +66,7 @@ def urbano_detection(
     gaussian_size: int = 11,
     gaussian_iters: int = 5,
     log_size: int = 9,
-    min_pixels: int = 5,
+    blob_min_pixel_area: int = 5,
     *,
     show_progress: bool = True,
     verbose: bool = True,
@@ -91,7 +91,7 @@ def urbano_detection(
             Number of times the Gaussian filter is applied (paper: 5).
         log_size (int, optional):
             Side length in pixels of the LoG kernel (paper: 9).
-        min_pixels (int, optional):
+        blob_min_pixel_area (int, optional):
             Minimum connected-component area in pixels to keep as a detection
             (paper: 5). Smaller groups are discarded.
         show_progress (bool, optional):
@@ -136,7 +136,7 @@ def urbano_detection(
         "gaussian_size": int(gaussian_size),
         "gaussian_iters": int(gaussian_iters),
         "log_size": int(log_size),
-        "min_pixels": int(min_pixels),
+        "blob_min_pixel_area": int(blob_min_pixel_area),
         "skipped": True,
     }
 
@@ -183,7 +183,7 @@ def urbano_detection(
         labeled, _ = ndimage_label(binary, structure=_STRUCT_8)
         frame_rows: list[list[str]] = []
         for prop in regionprops(labeled):
-            if prop.area < min_pixels:
+            if prop.area < blob_min_pixel_area:
                 continue
             cy, cx = prop.centroid          # row=y, col=x
             min_r, min_c, max_r, max_c = prop.bbox
@@ -215,7 +215,7 @@ def urbano_detection(
         "gaussian_size": int(gaussian_size),
         "gaussian_iters": int(gaussian_iters),
         "log_size": int(log_size),
-        "min_pixels": int(min_pixels),
+        "blob_min_pixel_area": int(blob_min_pixel_area),
         "frames_processed": int(num_frames),
         "frames_with_detections": frames_with_detections,
         "detections_found": detections_found,

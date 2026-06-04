@@ -188,7 +188,7 @@ class _SessionDetectionNamespace:
         gaussian_size: int = 11,
         gaussian_iters: int = 5,
         log_size: int = 9,
-        min_pixels: int = 5,
+        blob_min_pixel_area: int = 5,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -205,7 +205,7 @@ class _SessionDetectionNamespace:
                 Number of times the Gaussian filter is applied (paper: 5).
             log_size (int, optional):
                 Side length in pixels of the LoG kernel (paper: 9).
-            min_pixels (int, optional):
+            blob_min_pixel_area (int, optional):
                 Minimum connected-component area in pixels to keep as a
                 detection (paper: 5).
             show_progress (bool, optional):
@@ -234,7 +234,7 @@ class _SessionDetectionNamespace:
                 gaussian_size=gaussian_size,
                 gaussian_iters=gaussian_iters,
                 log_size=log_size,
-                min_pixels=min_pixels,
+                blob_min_pixel_area=blob_min_pixel_area,
                 show_progress=show_progress,
                 verbose=verbose,
             )
