@@ -1,5 +1,7 @@
 # pycasa
 
+**Version 0.0.1**
+
 `pycasa` is a Python toolkit for computer-assisted semen analysis workflows. It supports loading microscopy videos, preprocessing frames, running detection and tracking, computing motility metrics, assessing predictions against groundtruth, and visualizing results.
 
 ## Why pycasa
@@ -27,7 +29,7 @@ import pycasa as pc
 
 self = pc.io.load_default_data()
 self.preprocessing.binarization.otsu()
-self.detection.yolov5()
+self.detection.yolo()
 self.info()
 ```
 
@@ -38,8 +40,8 @@ pycasa/
   casa/            # Fluent wrappers (self.io, self.detection, ...)
   io/              # Video/default-data loading implementations
   preprocessing/   # Grayscale, normalization, binarization implementations
-  detection/       # Detection backends (moving-cells, digital washing, YOLOv5)
-  tracking/        # SORT tracking implementation
+  detection/       # Detection backends (moving-cells, digital washing, Urbano, YOLO v5/v26)
+  tracking/        # Tracking backends (SORT, DeepSORT, JPDAF)
   motility/        # Motility parameter computation
   assessment/      # Prediction-vs-groundtruth evaluation
   visualization/   # Plotting and interactive analysis

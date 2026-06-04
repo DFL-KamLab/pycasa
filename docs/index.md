@@ -6,6 +6,10 @@
   <em>A Python toolkit for computer-assisted semen analysis — from raw video to motility metrics in a single fluent pipeline.</em>
 </p>
 
+<p align="center">
+  <strong>Version 0.0.1</strong>
+</p>
+
 ---
 
 ## Install
