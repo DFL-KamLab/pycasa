@@ -65,6 +65,7 @@ def deepsort(
     max_iou_distance: float = 0.7,
     max_cosine_distance: float = 1.0,
     nn_budget: int | None = None,
+    initial_frame: int = 0,
     *,
     show_progress: bool = True,
     verbose: bool = True,
@@ -102,6 +103,10 @@ def deepsort(
         nn_budget (int | None, optional):
             Maximum number of appearance features stored per track for the
             nearest-neighbour appearance metric.  ``None`` = unlimited.
+        initial_frame (int, optional):
+            Offset (in frames) from the start of the analyzed video at which
+            to begin tracking. Frames before this offset are skipped entirely
+            so no track history is accumulated from them. Default ``0``.
         show_progress (bool, optional):
             If ``True``, show the shared pycasa progress bar while processing
             frames.
@@ -173,6 +178,7 @@ def deepsort(
         "max_iou_distance": float(max_iou_distance),
         "max_cosine_distance": float(max_cosine_distance),
         "nn_budget": nn_budget,
+        "initial_frame": int(max(0, initial_frame)),
         "skipped": True,
     }
 
@@ -263,10 +269,26 @@ def deepsort(
             }
             continue
 
-        initial_frame, number_frame_used = frame_range
+        video_initial_frame, number_frame_used = frame_range
+
+        start_offset = max(0, int(initial_frame))
+        if start_offset >= number_frame_used:
+            deepsort_root[source_name] = {}
+            per_source[source_name] = {
+                "input_frames": 0,
+                "output_tracks": 0,
+                "average_track_length": None,
+                "skipped": True,
+                "reason": "initial_frame_exceeds_video_length",
+            }
+            continue
+
+        effective_initial_frame = video_initial_frame + start_offset
+        effective_frame_count = number_frame_used - start_offset
+
         local_detections: dict[str, list[Any]] = {}
-        for local_idx in range(number_frame_used):
-            global_frame = initial_frame + local_idx
+        for local_idx in range(effective_frame_count):
+            global_frame = effective_initial_frame + local_idx
             local_detections[str(local_idx)] = _get_frame_detections(
                 raw_detections, global_frame,
             )
@@ -283,8 +305,8 @@ def deepsort(
         tracks: dict[str, dict[int, list[float]]] = {}
 
         for frame_idx in _progress_bar(
-            range(number_frame_used),
-            total=number_frame_used,
+            range(effective_frame_count),
+            total=effective_frame_count,
             desc=f"Tracking deepsort ({source_name})",
             unit="frame",
             leave=True,
@@ -319,7 +341,7 @@ def deepsort(
         for track_id, local_track in sorted_local_tracks.items():
             global_track: dict[str, list[float]] = {}
             for local_idx, coords in local_track.items():
-                global_frame = initial_frame + int(local_idx)
+                global_frame = effective_initial_frame + int(local_idx)
                 global_track[str(global_frame)] = coords
             globalized[track_id] = global_track
 
@@ -327,7 +349,7 @@ def deepsort(
         processed_sources.append(source_name)
         output_tracks = int(len(globalized))
         total_output_tracks += output_tracks
-        total_input_frames += int(number_frame_used)
+        total_input_frames += int(effective_frame_count)
         average_track_length = (
             float(
                 np.mean([
@@ -340,7 +362,7 @@ def deepsort(
             else 0.0
         )
         per_source[source_name] = {
-            "input_frames": int(number_frame_used),
+            "input_frames": int(effective_frame_count),
             "output_tracks": output_tracks,
             "average_track_length": average_track_length,
             "skipped": False,
@@ -389,6 +411,7 @@ def deepsort(
         "max_iou_distance": float(max_iou_distance),
         "max_cosine_distance": float(max_cosine_distance),
         "nn_budget": nn_budget,
+        "initial_frame": int(max(0, initial_frame)),
         "input_frames": int(total_input_frames),
         "output_tracks": int(total_output_tracks),
         "skipped": bool(all_skipped),

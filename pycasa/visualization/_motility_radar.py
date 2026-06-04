@@ -5,6 +5,7 @@ import numpy as np
 from .._core._casa import _ensure_casa
 from ..utils import _ensure_import
 from ..utils import _import_matplotlib_for_visualization
+from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_visualization_source
 
 _RADAR_PARAMS = ["VCL", "VSL", "VAP", "LIN", "ALH", "WOB", "STR", "MAD"]
@@ -134,6 +135,10 @@ def motility_radar(
         else source_order[0]
     )
 
+    tracks_root = casa.get("tracks", {})
+    active_backend = _resolve_active_tracking_backend(tracks_root) or "sort"
+    backend_label = str(active_backend).upper()
+
     state = {"source": str(selected_source)}
     source_buttons: dict[str, dict[str, Any]] = {}
 
@@ -198,18 +203,18 @@ def motility_radar(
 
         plot_axis.clear()
         color = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["C0"])[0]
-        label = f"SORT ({source_name})"
-        plot_axis.plot(angles, closed_values, color=color, linewidth=1.5, label=label)
+        label = f"{backend_label} ({source_name})"
+        plot_axis.plot(angles, closed_values, color=color, linewidth=3.0, label=label)
         plot_axis.fill(angles, closed_values, color=color, alpha=0.2)
 
         plot_axis.set_ylim(0, 1)
         plot_axis.set_yticks([0.25, 0.5, 0.75, 1.0])
-        plot_axis.set_yticklabels(["25%", "50%", "75%", "100%"], fontsize=6)
+        plot_axis.set_yticklabels(["25%", "50%", "75%", "100%"], fontsize=22)
         split_labels = [f"{param}\n({int(_RADAR_MAX_VALS[param])})" for param in _RADAR_PARAMS]
         plot_axis.set_xticks(angles[:-1])
-        plot_axis.set_xticklabels(split_labels, fontsize=6)
+        plot_axis.set_xticklabels(split_labels, fontsize=22)
         plot_axis.set_title(
-            f"Average Motility Parameters (SORT:{source_name})",
+            f"Average Motility Parameters ({backend_label}:{source_name})",
             va="bottom",
             fontsize=12,
         )
@@ -226,7 +231,7 @@ def motility_radar(
                 transform=plot_axis.transAxes,
                 ha="center",
                 va="top",
-                fontsize=7,
+                fontsize=24,
                 family="monospace",
             )
 
@@ -255,7 +260,7 @@ def motility_radar(
 
     casa["meta"]["last_visualization"] = {
         "type": "motility_radar",
-        "tracking_backend": "sort",
+        "tracking_backend": active_backend,
         "detection_method": str(state["source"]),
         "show_legend": bool(show_legend),
         "show_text": bool(show_text),

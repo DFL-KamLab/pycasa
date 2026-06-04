@@ -56,6 +56,9 @@ class _SessionVisualizationNamespace:
         show_tracks: bool = False,
         show_groundtruth: bool = True,
         show_track_ids: bool = False,
+        detection_color: str | None = None,
+        groundtruth_color: str | None = None,
+        track_colors: dict[str, Any] | None = None,
     ) -> "Casa":
         """Open an interactive time-lapse viewer for selected video representations.
 
@@ -77,6 +80,17 @@ class _SessionVisualizationNamespace:
             show_track_ids (bool, optional):
                 Whether to annotate each track head with track ID text. This can be
                 expensive for large track sets.
+            detection_color (str | None, optional):
+                Matplotlib color used for predicted-detection bounding boxes.
+                ``None`` keeps the default (``"#ff4d4d"``).
+            groundtruth_color (str | None, optional):
+                Matplotlib color used for groundtruth bounding boxes. ``None``
+                keeps the default (``"lime"``).
+            track_colors (dict[str, Any] | None, optional):
+                Per-source color override for track lines. Keys may be the
+                literal source name (e.g. ``"groundtruth"``, ``"yolo"``) or a
+                role alias: ``"groundtruth"`` for the groundtruth source and
+                ``"detection"`` for the active predicted-detection source.
 
         Returns:
             Casa:
@@ -95,6 +109,13 @@ class _SessionVisualizationNamespace:
             - Play/Pause button: animate frames at session sampling rate.
             - Checkboxes: toggle detections/tracks/groundtruth overlays.
             - Keyboard: left/right arrows step frames, space toggles play.
+
+        Examples:
+            >>> session = session.visualization.timelapse(
+            ...     detection_color="blue",
+            ...     groundtruth_color="red",
+            ...     track_colors={"groundtruth": "yellow", "detection": "orange"},
+            ... )
         """
         from ...visualization import timelapse as timelapse_fn
 
@@ -107,6 +128,9 @@ class _SessionVisualizationNamespace:
                 show_tracks=show_tracks,
                 show_groundtruth=show_groundtruth,
                 show_track_ids=show_track_ids,
+                detection_color=detection_color,
+                groundtruth_color=groundtruth_color,
+                track_colors=track_colors,
             )
         )
 

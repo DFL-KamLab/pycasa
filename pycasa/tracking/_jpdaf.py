@@ -898,7 +898,8 @@ def _run_jpdaf_on_source(
     pconfirm: float,
     redundant_dist: float,
     show_progress: bool,
-) -> dict[str, dict[str, list[float]]] | None:
+    initial_frame: int = 0,
+) -> tuple[dict[str, dict[str, list[float]]], int] | None:
     """Run the full JPDAF pipeline on one detection source.
 
     Parameters:
@@ -940,11 +941,17 @@ def _run_jpdaf_on_source(
             suppressed (pixels).
         show_progress (bool):
             Whether to display a tqdm progress bar.
+        initial_frame (int):
+            Offset (in frames) from the start of the analyzed video at which
+            to begin tracking. Frames before this offset are skipped entirely.
 
     Returns:
-        dict[str, dict[str, list[float]]] | None:
-            Globalised track dict ``{track_id: {frame_str: [cx, cy]}}``
-            or ``None`` if the frame range cannot be resolved.
+        tuple[dict[str, dict[str, list[float]]], int] | None:
+            ``(globalised_tracks, effective_frame_count)`` where
+            ``globalised_tracks`` is ``{track_id: {frame_str: [cx, cy]}}``
+            and ``effective_frame_count`` is the number of frames actually
+            processed. Returns ``None`` if the frame range cannot be
+            resolved or ``initial_frame`` exceeds the video length.
     """
     frame_range = _resolve_tracking_frame_range(
         video_info=video_info if isinstance(video_info, dict) else {},
@@ -954,7 +961,14 @@ def _run_jpdaf_on_source(
     if frame_range is None:
         return None
 
-    initial_frame, number_frame_used = frame_range
+    video_initial_frame, number_frame_used = frame_range
+
+    start_offset = max(0, int(initial_frame))
+    if start_offset >= number_frame_used:
+        return None
+
+    effective_initial_frame = video_initial_frame + start_offset
+    number_frame_used = number_frame_used - start_offset
 
     F, H, N, Q0 = _build_matrices(T, sigma_n, q0)
     eta_c, eta_d, score_init = _management_thresholds(lambda_c, lambda_n, pdelete, pconfirm)
@@ -971,7 +985,7 @@ def _run_jpdaf_on_source(
         leave=True,
         enabled=show_progress,
     ):
-        global_frame = initial_frame + local_idx
+        global_frame = effective_initial_frame + local_idx
         frame_data = _get_frame_detections(raw_detections, global_frame)
 
         # ---- Parse measurements ----
@@ -1111,11 +1125,11 @@ def _run_jpdaf_on_source(
     for track_id, local_track in sorted_local.items():
         global_track: dict[str, list[float]] = {}
         for local_idx, coords in local_track.items():
-            global_frame = initial_frame + int(local_idx)
+            global_frame = effective_initial_frame + int(local_idx)
             global_track[str(global_frame)] = coords
         globalised[track_id] = global_track
 
-    return globalised
+    return globalised, int(number_frame_used)
 
 
 # ---------------------------------------------------------------------------
@@ -1126,6 +1140,7 @@ def jpdaf(
     casa: dict[str, Any],
     skip_gt: bool = False,
     frame_rate: float | None = None,
+    initial_frame: int = 0,
     *,
     show_progress: bool = True,
     verbose: bool = True,
@@ -1150,6 +1165,10 @@ def jpdaf(
             Frames per second.  When ``None``, the value is read from
             ``casa['meta']['sampling_rate']``.  The frame period
             ``T = 1 / frame_rate`` is used in the CWNA motion model.
+        initial_frame (int, optional):
+            Offset (in frames) from the start of the analyzed video at which
+            to begin tracking. Frames before this offset are skipped entirely
+            so no track history is accumulated from them. Default ``0``.
         show_progress (bool, optional):
             If ``True``, display the shared pycasa progress bar during
             per-frame tracking.
@@ -1305,6 +1324,7 @@ def jpdaf(
             "sigma_n": float(sigma_n),
             "gamma_v": float(gamma_v),
             "um_per_px": um_per_px,
+            "initial_frame": int(max(0, initial_frame)),
             "input_frames": 0,
             "output_tracks": 0,
             "skipped": True,
@@ -1353,7 +1373,7 @@ def jpdaf(
             }
             continue
 
-        globalised = _run_jpdaf_on_source(
+        run_result = _run_jpdaf_on_source(
             raw_detections=raw_detections,
             video_info=video_info if isinstance(video_info, dict) else {},
             video_array=video_array if isinstance(video_array, np.ndarray) else None,
@@ -1372,30 +1392,38 @@ def jpdaf(
             pconfirm=_PCONFIRM,
             redundant_dist=redundant_dist,
             show_progress=show_progress,
+            initial_frame=initial_frame,
         )
 
-        if globalised is None:
+        if run_result is None:
+            frame_range = _resolve_tracking_frame_range(
+                video_info=video_info if isinstance(video_info, dict) else {},
+                video_array=video_array if isinstance(video_array, np.ndarray) else None,
+                raw_detections=raw_detections,
+            )
+            if (
+                frame_range is not None
+                and max(0, int(initial_frame)) >= frame_range[1]
+            ):
+                reason_text = "initial_frame_exceeds_video_length"
+            else:
+                reason_text = "invalid_frame_range"
             jpdaf_root[source_name] = {}
             per_source[source_name] = {
                 "input_frames": 0,
                 "output_tracks": 0,
                 "average_track_length": None,
                 "skipped": True,
-                "reason": "invalid_frame_range",
+                "reason": reason_text,
             }
             continue
+
+        globalised, n_frames = run_result
 
         jpdaf_root[source_name] = globalised
         processed_sources.append(source_name)
         output_tracks = len(globalised)
         total_output_tracks += output_tracks
-
-        frame_range = _resolve_tracking_frame_range(
-            video_info=video_info if isinstance(video_info, dict) else {},
-            video_array=video_array if isinstance(video_array, np.ndarray) else None,
-            raw_detections=raw_detections,
-        )
-        n_frames = frame_range[1] if frame_range is not None else 0
         total_input_frames += n_frames
 
         avg_len: float | None = (
@@ -1445,6 +1473,7 @@ def jpdaf(
         "sigma_n": float(sigma_n),
         "gamma_v": float(gamma_v),
         "um_per_px": um_per_px,
+        "initial_frame": int(max(0, initial_frame)),
         "input_frames": int(total_input_frames),
         "output_tracks": int(total_output_tracks),
         "skipped": bool(all_skipped),

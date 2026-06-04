@@ -23,6 +23,9 @@ def timelapse(
     show_tracks: bool = False,
     show_groundtruth: bool = True,
     show_track_ids: bool = False,
+    detection_color: str | None = None,
+    groundtruth_color: str | None = None,
+    track_colors: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Open an interactive time-lapse viewer for selected video representations.
 
@@ -47,6 +50,18 @@ def timelapse(
         show_track_ids (bool, optional):
             Whether to annotate each track head with track ID text. This can be
             expensive for large track sets.
+        detection_color (str | None, optional):
+            Matplotlib color used for predicted-detection bounding boxes.
+            ``None`` keeps the default (``"#ff4d4d"``).
+        groundtruth_color (str | None, optional):
+            Matplotlib color used for groundtruth bounding boxes. ``None``
+            keeps the default (``"lime"``).
+        track_colors (dict[str, Any] | None, optional):
+            Per-source color override for track lines. Keys may be the literal
+            source name (e.g. ``"groundtruth"``, ``"yolo"``) or a role alias:
+            ``"groundtruth"`` for the groundtruth source and ``"detection"``
+            for the active predicted-detection source. Values are any valid
+            matplotlib color.
 
     Returns:
         dict[str, Any]:
@@ -67,18 +82,39 @@ def timelapse(
         - Keyboard: left/right arrows step frames, space toggles play.
         Overlay rendering:
         - Detections and groundtruth are drawn as bounding boxes.
-        - Tracks are drawn as thin trajectory lines for unobstructed viewing.
+        - Tracks are drawn as trajectory lines for unobstructed viewing.
+
+    Examples:
+        >>> import pycasa as pc
+        >>> session = pc.Casa()
+        >>> session = session.visualization.timelapse(
+        ...     detection_color="blue",
+        ...     groundtruth_color="red",
+        ...     track_colors={"groundtruth": "yellow", "detection": "orange"},
+        ... )
     """
     casa = _ensure_casa(casa)
 
     plt = _import_matplotlib_for_visualization("timelapse")
     mpl_collections = _ensure_import("matplotlib.collections", pip_name="matplotlib")
+    mpl_colors_mod = _ensure_import("matplotlib.colors", pip_name="matplotlib")
     mpl_lines = _ensure_import("matplotlib.lines", pip_name="matplotlib")
     mpl_widgets = _ensure_import("matplotlib.widgets", pip_name="matplotlib")
     LineCollection = mpl_collections.LineCollection
     Line2D = mpl_lines.Line2D
     Button = mpl_widgets.Button
     Slider = mpl_widgets.Slider
+
+    def _to_rgba_array(color_value: Any) -> np.ndarray:
+        """Convert any matplotlib color to a ``float32`` RGBA numpy array."""
+        rgba = mpl_colors_mod.to_rgba(color_value)
+        return np.asarray(rgba, dtype=np.float32)
+
+    user_track_colors: dict[str, Any] = (
+        dict(track_colors) if isinstance(track_colors, dict) else {}
+    )
+    groundtruth_box_color = groundtruth_color if groundtruth_color is not None else "lime"
+    detection_box_color = detection_color if detection_color is not None else "#ff4d4d"
 
     selected_video_type = image_type if image_type is not None else video_type
     image_keys = _parse_image_types(selected_video_type)
@@ -188,7 +224,18 @@ def timelapse(
             cache_rows = track_cache_by_source.get(source_name, [])
             if not cache_rows:
                 continue
-            if source_name in source_base_colors:
+
+            user_color: Any = None
+            if source_name in user_track_colors:
+                user_color = user_track_colors[source_name]
+            elif source_name == "groundtruth" and "groundtruth" in user_track_colors:
+                user_color = user_track_colors["groundtruth"]
+            elif source_name != "groundtruth" and "detection" in user_track_colors:
+                user_color = user_track_colors["detection"]
+
+            if user_color is not None:
+                base_color = _to_rgba_array(user_color)
+            elif source_name in source_base_colors:
                 base_color = source_base_colors[source_name]
             else:
                 base_color = fallback_palette[fallback_idx % len(fallback_palette)]
@@ -223,7 +270,6 @@ def timelapse(
         },
     }
 
-    empty_offsets = np.empty((0, 2), dtype=np.float32)
     empty_colors = np.empty((0, 4), dtype=np.float32)
 
     axis_contexts: list[dict[str, Any]] = []
@@ -237,18 +283,20 @@ def timelapse(
         axis.set_title(f"{label} | frame {initial_frame}")
         axis.axis("off")
 
-        groundtruth_box_collection = LineCollection([], linewidths=1.0, colors="lime", alpha=0.85)
-        det_box_collection = LineCollection([], linewidths=1.0, colors="#ff4d4d", alpha=0.85)
+        groundtruth_box_collection = LineCollection(
+            [], linewidths=1.5, colors=groundtruth_box_color, alpha=0.85
+        )
+        det_box_collection = LineCollection(
+            [], linewidths=1.5, colors=detection_box_color, alpha=0.85
+        )
         axis.add_collection(groundtruth_box_collection)
         axis.add_collection(det_box_collection)
 
         track_line_collection = None
-        track_head_artist = None
         track_text_artists: list[Any] = []
         if has_track_overlay:
-            track_line_collection = LineCollection([], linewidths=0.75, alpha=0.65)
+            track_line_collection = LineCollection([], linewidths=1.5, alpha=0.65)
             axis.add_collection(track_line_collection)
-            track_head_artist = axis.scatter([], [], s=12, alpha=0.85)
 
         axis_contexts.append(
             {
@@ -259,7 +307,6 @@ def timelapse(
                 "groundtruth_box_collection": groundtruth_box_collection,
                 "det_box_collection": det_box_collection,
                 "track_line_collection": track_line_collection,
-                "track_head_artist": track_head_artist,
                 "track_text_artists": track_text_artists,
             }
         )
@@ -281,7 +328,7 @@ def timelapse(
                     marker="s",
                     linestyle="None",
                     markerfacecolor="none",
-                    markeredgecolor="lime",
+                    markeredgecolor=groundtruth_box_color,
                     markeredgewidth=1.2,
                     markersize=7,
                     label="groundtruth",
@@ -295,7 +342,7 @@ def timelapse(
                     marker="s",
                     linestyle="None",
                     markerfacecolor="none",
-                    markeredgecolor="#ff4d4d",
+                    markeredgecolor=detection_box_color,
                     markeredgewidth=1.2,
                     markersize=7,
                     label=f"detections ({detection_source_label})",
@@ -377,9 +424,8 @@ def timelapse(
             det_box_collection.set_visible(show_det)
 
             track_line_collection = context["track_line_collection"]
-            track_head_artist = context["track_head_artist"]
             track_text_artists = context["track_text_artists"]
-            if track_line_collection is not None and track_head_artist is not None:
+            if track_line_collection is not None:
                 for text_artist in list(track_text_artists):
                     try:
                         text_artist.remove()
@@ -390,8 +436,6 @@ def timelapse(
                 if track_end_indices_by_source:
                     segments: list[np.ndarray] = []
                     segment_colors: list[Any] = []
-                    head_points: list[tuple[float, float]] = []
-                    head_colors: list[Any] = []
 
                     for source_name, source_end_indices in track_end_indices_by_source.items():
                         source_cache = track_cache_by_source.get(source_name, [])
@@ -407,8 +451,6 @@ def timelapse(
                             if len(xs) > 1:
                                 segments.append(np.column_stack((xs, ys)))
                                 segment_colors.append(color)
-                            head_points.append((float(xs[-1]), float(ys[-1])))
-                            head_colors.append(color)
 
                             if show_track_ids:
                                 track_text_artists.append(
@@ -428,22 +470,10 @@ def timelapse(
                     else:
                         track_line_collection.set_color(empty_colors)
                         track_line_collection.set_visible(False)
-
-                    if head_points:
-                        track_head_artist.set_offsets(np.asarray(head_points, dtype=np.float32))
-                        track_head_artist.set_facecolors(np.asarray(head_colors, dtype=np.float32))
-                        track_head_artist.set_visible(True)
-                    else:
-                        track_head_artist.set_offsets(empty_offsets)
-                        track_head_artist.set_facecolors(empty_colors)
-                        track_head_artist.set_visible(False)
                 else:
                     track_line_collection.set_segments([])
                     track_line_collection.set_color(empty_colors)
                     track_line_collection.set_visible(False)
-                    track_head_artist.set_offsets(empty_offsets)
-                    track_head_artist.set_facecolors(empty_colors)
-                    track_head_artist.set_visible(False)
 
         fig.canvas.draw_idle()
 

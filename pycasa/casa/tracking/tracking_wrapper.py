@@ -7,6 +7,7 @@ class _SessionTrackingNamespace:
         self,
         skip_gt: bool = False,
         frame_rate: float | None = None,
+        initial_frame: int = 0,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -28,6 +29,11 @@ class _SessionTrackingNamespace:
                 Frames per second.  When ``None``, read from
                 ``casa['meta']['sampling_rate']``.  Required to derive the
                 CWNA motion-model frame period ``T = 1 / frame_rate``.
+            initial_frame (int, optional):
+                Offset (in frames) from the start of the analyzed video at
+                which to begin tracking. Frames before this offset are
+                skipped entirely so no track history is accumulated from
+                them. Default ``0``.
             show_progress (bool, optional):
                 If ``True``, show the shared pycasa progress bar during
                 per-frame tracking.
@@ -57,6 +63,7 @@ class _SessionTrackingNamespace:
                 self._session._as_dict(),
                 skip_gt=skip_gt,
                 frame_rate=frame_rate,
+                initial_frame=initial_frame,
                 show_progress=show_progress,
                 verbose=verbose,
             )
@@ -70,6 +77,7 @@ class _SessionTrackingNamespace:
         max_iou_distance: float = 0.7,
         max_cosine_distance: float = 1.0,
         nn_budget: int | None = None,
+        initial_frame: int = 0,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -103,6 +111,11 @@ class _SessionTrackingNamespace:
             nn_budget (int | None, optional):
                 Maximum appearance features stored per track.
                 ``None`` = unlimited.
+            initial_frame (int, optional):
+                Offset (in frames) from the start of the analyzed video at
+                which to begin tracking. Frames before this offset are
+                skipped entirely so no track history is accumulated from
+                them. Default ``0``.
             show_progress (bool, optional):
                 If ``True``, show the shared pycasa progress bar while running
                 per-frame tracking.
@@ -131,6 +144,7 @@ class _SessionTrackingNamespace:
                 max_iou_distance=max_iou_distance,
                 max_cosine_distance=max_cosine_distance,
                 nn_budget=nn_budget,
+                initial_frame=initial_frame,
                 show_progress=show_progress,
                 verbose=verbose,
             )
@@ -143,6 +157,7 @@ class _SessionTrackingNamespace:
         max_age: int = 25,
         min_hits: int = 3,
         iou_threshold: float = 0.1,
+        initial_frame: int = 0,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -163,6 +178,11 @@ class _SessionTrackingNamespace:
                 Minimum associated detections before a track is emitted.
             iou_threshold (float, optional):
                 Minimum IoU threshold for assignment.
+            initial_frame (int, optional):
+                Offset (in frames) from the start of the analyzed video at
+                which to begin tracking. Frames before this offset are skipped
+                entirely so no track history is accumulated from them.
+                Default ``0``.
             show_progress (bool, optional):
                 If ``True``, show the shared pycasa progress bar while running
                 per-frame tracking.
@@ -197,6 +217,7 @@ class _SessionTrackingNamespace:
                 max_age=max_age,
                 min_hits=min_hits,
                 iou_threshold=iou_threshold,
+                initial_frame=initial_frame,
                 show_progress=show_progress,
                 verbose=verbose,
             )
