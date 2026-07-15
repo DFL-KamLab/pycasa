@@ -46,6 +46,23 @@ markdown_extensions:
 extra_css:
   - stylesheets/extra.css
 
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_signature_annotations: true
+            separate_signature: true
+            show_source: false
+            members_order: source
+            heading_level: 2
+
 nav:
   - Getting Started:
     - Introduction: index.md

@@ -151,8 +151,9 @@ class Casa:
             _SessionDetectionNamespace:
                 Namespace exposing:
                 - ``detect_moving_cells(...)``
-                - ``yolov5(...)``
                 - ``digital_washing(...)``
+                - ``urbano_detection(...)``
+                - ``yolo(...)``
         """
         return _SessionDetectionNamespace(self)
 
@@ -170,6 +171,8 @@ class Casa:
             _SessionTrackingNamespace:
                 Namespace exposing:
                 - ``sort(...)``
+                - ``deepsort(...)``
+                - ``jpdaf(...)``
         """
         return _SessionTrackingNamespace(self)
 

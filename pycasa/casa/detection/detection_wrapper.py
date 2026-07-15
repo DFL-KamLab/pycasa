@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class _SessionDetectionNamespace:
     def __init__(self, session: "Casa") -> None:
         """Initialize the detection namespace for a ``Casa`` session."""
@@ -9,7 +12,7 @@ class _SessionDetectionNamespace:
         *,
         show_progress: bool = True,
         verbose: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> "Casa":
         """Detect moving cells from video using legacy-parity logic.
 

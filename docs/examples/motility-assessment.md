@@ -153,5 +153,5 @@ print(f"Evaluated frames: {clf['evaluated_frames']}")
 ## What to try next
 
 - [Visualization API](../api/visualization.md) — use `motility_radar()` and `motility_density_scatter()` to plot aggregate metric summaries.
-- [Interactive motility calculator](../api/visualization.md#selfvisualizationinteractive_motility_calculator) — explore per-track, per-window metric histories in an interactive panel.
+- [Interactive motility calculator](../api/visualization.md) — explore per-track, per-window metric histories in an interactive panel.
 - [Assessment API](../api/assessment.md) — full parameter reference for `classification()`.

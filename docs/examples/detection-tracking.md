@@ -64,7 +64,7 @@ pycasa provides three detection methods. Pick the one that fits your data and co
     ```
 
 !!! tip "See also"
-    `self.detection.urbano_detection(...)` is a classical Laplacian-of-Gaussian segmentation pipeline (Urbano et al. 2017) — full parameters on the [Detection API page](../api/detection.md#selfdetectionurbano_detection).
+    `self.detection.urbano_detection(...)` is a classical Laplacian-of-Gaussian segmentation pipeline (Urbano et al. 2017) — full parameters on the [Detection API page](../api/detection.md).
 
 ---
 
