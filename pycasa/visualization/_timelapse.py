@@ -13,6 +13,7 @@ from ..utils import _resolve_active_sort_tracks
 from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_sort_track_sources
 from ..utils import _resolve_frame_entries
+from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 
 def timelapse(
@@ -83,6 +84,10 @@ def timelapse(
         Overlay rendering:
         - Detections and groundtruth are drawn as bounding boxes.
         - Tracks are drawn as trajectory lines for unobstructed viewing.
+        - Track sources include any active backend sources plus imported
+          ground-truth tracks (``casa["tracks"]["groundtruth_tracks"]``), each
+          with its own toggle. Enable them with ``show_tracks=True`` or the
+          per-source toggle button.
 
     Examples:
         >>> import pycasa as pc
@@ -155,7 +160,12 @@ def timelapse(
     if not isinstance(tracks_root, dict):
         tracks_root = {}
     active_tracking_backend = _resolve_active_tracking_backend(tracks_root) or "sort"
-    track_sources = _resolve_sort_track_sources(tracks_root)
+    track_sources = dict(_resolve_sort_track_sources(tracks_root))
+    # Imported ground-truth tracks live at a reserved top-level key (not a
+    # backend), so surface them here as their own selectable track source.
+    imported_gt_tracks = tracks_root.get(_GROUNDTRUTH_TRACKS_KEY)
+    if isinstance(imported_gt_tracks, dict) and imported_gt_tracks:
+        track_sources[_GROUNDTRUTH_TRACKS_KEY] = imported_gt_tracks
     ordered_track_sources = sorted(
         track_sources.keys(),
         key=lambda value: (value != "groundtruth", value),
@@ -198,8 +208,13 @@ def timelapse(
         str(selected_detection_method), fallback="detections"
     )
     track_source_labels = {
-        source_name: _format_overlay_source_label(
-            f"{active_tracking_backend}:{source_name}", fallback=active_tracking_backend
+        source_name: (
+            "groundtruth_tracks"
+            if source_name == _GROUNDTRUTH_TRACKS_KEY
+            else _format_overlay_source_label(
+                f"{active_tracking_backend}:{source_name}",
+                fallback=active_tracking_backend,
+            )
         )
         for source_name in available_track_sources
     }

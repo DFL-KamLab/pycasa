@@ -10,7 +10,10 @@ pycasa implements three interchangeable tracking backends, each with its own tra
 | `deepsort` | SORT + appearance embeddings ([Wojke et al. 2017](https://github.com/nwojke/deep_sort)) | Same as SORT when appearance is uninformative; supports custom ReID features. |
 | `jpdaf` | Joint Probabilistic Data Association Filter ([Urbano et al. 2017](https://doi.org/10.1109/TMI.2016.2630720)) | Dense, occluded sperm fields with overlapping trajectories. |
 
-All three write to the standard `casa["tracks"][backend][source]` schema, so downstream motility and visualization steps work identically regardless of which one you choose. Calling a new backend clears `casa["tracks"]` and a yellow warning is emitted to flag the overwrite.
+All three write to the standard `casa["tracks"][backend][source]` schema, so downstream motility and visualization steps work identically regardless of which one you choose. Calling a new backend clears the previous backend's tracks (a yellow warning flags the overwrite) but preserves imported ground-truth tracks.
+
+!!! note "Imported ground-truth tracks"
+    `casa["tracks"][backend]["groundtruth"]` means *tracks a backend computed from ground-truth **detections*** — it is an algorithm's output. This is distinct from imported ground-truth **tracks** (true identities read from label files), which are loaded via `load_video(..., groundtruth_tracks_path=...)` and stored at the reserved top-level key `casa["tracks"]["groundtruth_tracks"]`. The two coexist: running a backend never wipes the imported truth. Access it with `self.get_groundtruth_tracks()`. It flows through the timelapse, `info()`, motility, and the motility visualizations as its own selectable source, so you can compare predicted tracks against the truth.
 
 !!! note "This page is generated from the code"
     Signatures, parameters, and descriptions below are rendered directly from the

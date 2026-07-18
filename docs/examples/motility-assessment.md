@@ -123,7 +123,7 @@ The output structure:
 ## Reading the assessment output
 
 !!! note "Groundtruth requirement"
-    Assessment compares predicted detections against groundtruth. The default dataset includes groundtruth annotations. For custom videos, pass `groundtruth_path=...` to `load_video()`.
+    Assessment compares predicted detections against groundtruth. The default dataset includes groundtruth annotations. For custom videos, pass `groundtruth_detections_path=...` to `load_video()`.
 
 ```python
 assessment = self.get_assessment()

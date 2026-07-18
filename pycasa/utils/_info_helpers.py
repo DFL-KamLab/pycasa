@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from ._tracking_helpers import _GROUNDTRUTH_TRACKS_KEY
 from ._tracking_helpers import _resolve_active_tracking_backend
 from ._tracking_helpers import _resolve_sort_track_sources
 
@@ -86,10 +87,20 @@ def _build_tracking_summary(
             primary_source = str(rows[0]["source"])
 
     backend_label = active_backend if (active_backend and rows) else None
+
+    imported_gt = tracks.get(_GROUNDTRUTH_TRACKS_KEY)
+    groundtruth_tracks_summary: dict[str, Any] | None = None
+    if isinstance(imported_gt, dict) and imported_gt:
+        groundtruth_tracks_summary = {
+            "track_count": int(len(imported_gt)),
+            "average_track_length": _average_track_length(imported_gt),
+        }
+
     return {
         "backend": backend_label,
         "detection_method": primary_source,
         "sources": rows,
+        "groundtruth_tracks": groundtruth_tracks_summary,
     }
 
 
@@ -208,7 +219,8 @@ def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
 
     session = {
         "video_path": meta.get("video_path") or video.get("path"),
-        "groundtruth_path": detections.get("groundtruth_path"),
+        "groundtruth_detections_path": detections.get("groundtruth_detections_path"),
+        "groundtruth_tracks_path": meta.get("groundtruth_tracks_path"),
     }
 
     video_info = {
@@ -446,23 +458,39 @@ def _print_casa_info(info: dict[str, Any]) -> None:
 
         if section == "tracking":
             backend = section_data.get("backend")
-            if not backend:
-                print("- tracking: none")
-                continue
-            sources = section_data.get("sources")
-            if not isinstance(sources, list) or not sources:
-                print(f"- {backend}: none")
-                continue
-            for row in sources:
-                if not isinstance(row, dict):
-                    continue
-                print(f"- {backend}: {row.get('source')}")
+            groundtruth_tracks = section_data.get("groundtruth_tracks")
+            printed_any = False
+
+            if backend:
+                sources = section_data.get("sources")
+                if isinstance(sources, list) and sources:
+                    for row in sources:
+                        if not isinstance(row, dict):
+                            continue
+                        print(f"- {backend}: {row.get('source')}")
+                        print(
+                            "- "
+                            f"tracks={row.get('track_count')}, "
+                            "average track length="
+                            f"{_truncate_two_decimals(row.get('average_track_length'))}"
+                        )
+                        printed_any = True
+                else:
+                    print(f"- {backend}: none")
+                    printed_any = True
+
+            if isinstance(groundtruth_tracks, dict):
+                print("- groundtruth_tracks: imported")
                 print(
                     "- "
-                    f"tracks={row.get('track_count')}, "
+                    f"tracks={groundtruth_tracks.get('track_count')}, "
                     "average track length="
-                    f"{_truncate_two_decimals(row.get('average_track_length'))}"
+                    f"{_truncate_two_decimals(groundtruth_tracks.get('average_track_length'))}"
                 )
+                printed_any = True
+
+            if not printed_any:
+                print("- tracking: none")
             continue
 
         if section == "motility":
@@ -478,11 +506,14 @@ def _print_casa_info(info: dict[str, Any]) -> None:
                 if not isinstance(row, dict):
                     continue
                 print("")
-                print(
-                    "- "
-                    f"{section_data.get('tracking_backend')}: "
-                    f"{row.get('source')}"
-                )
+                if row.get("source") == _GROUNDTRUTH_TRACKS_KEY:
+                    print("- groundtruth_tracks (imported)")
+                else:
+                    print(
+                        "- "
+                        f"{section_data.get('tracking_backend')}: "
+                        f"{row.get('source')}"
+                    )
                 print(
                     "- "
                     f"tracks={row.get('track_count')}, "

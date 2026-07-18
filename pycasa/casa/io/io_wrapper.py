@@ -83,7 +83,8 @@ class _SessionIONamespace:
     def load_video(
         self,
         video_path: str,
-        groundtruth_path: str | None = None,
+        groundtruth_detections_path: str | None = None,
+        groundtruth_tracks_path: str | None = None,
         initial_frame: int = 0,
         final_frame: int | None = None,
         sampling_rate: float | None = None,
@@ -98,10 +99,15 @@ class _SessionIONamespace:
             video_path (str):
                 Path to video file. Supported extensions are listed in
                 ``SUPPORTED_MEDIA_TYPES``.
-            groundtruth_path (str | None, optional):
-                Optional directory containing frame-level groundtruth text files.
-                If provided, detections are loaded under
-                ``casa["detections"]["groundtruth"]``.
+            groundtruth_detections_path (str | None, optional):
+                Optional directory containing frame-level groundtruth detection
+                text files (YOLO ``class cx cy w h`` rows). If provided,
+                detections are loaded under ``casa["detections"]["groundtruth"]``.
+            groundtruth_tracks_path (str | None, optional):
+                Optional directory containing frame-level groundtruth track text
+                files (YOLO rows prefixed with a persistent ``track_id``). If
+                provided, imported truth tracks are loaded under
+                ``casa["tracks"]["groundtruth_tracks"]``.
             initial_frame (int, optional):
                 First frame index to read (0-based). Defaults to ``0``.
             final_frame (int | None, optional):
@@ -124,7 +130,9 @@ class _SessionIONamespace:
         Returns:
             Casa:
                 A fluent ``Casa`` object with ``meta`` and ``video`` populated,
-                plus optional ``detections["groundtruth"]`` if groundtruth path is used.
+                plus optional ``detections["groundtruth"]`` and/or
+                ``tracks["groundtruth_tracks"]`` if the corresponding groundtruth
+                paths are provided.
 
         Raises:
             FileNotFoundError:
@@ -152,7 +160,8 @@ class _SessionIONamespace:
 
         loaded = load_video(
             video_path=video_path,
-            groundtruth_path=groundtruth_path,
+            groundtruth_detections_path=groundtruth_detections_path,
+            groundtruth_tracks_path=groundtruth_tracks_path,
             initial_frame=initial_frame,
             final_frame=final_frame,
             sampling_rate=sampling_rate,

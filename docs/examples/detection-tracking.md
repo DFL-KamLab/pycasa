@@ -87,6 +87,9 @@ self.tracking.sort(
 !!! tip "Other tracking backends"
     `self.tracking.deepsort(...)` (SORT + appearance features) and `self.tracking.jpdaf(...)` (Joint Probabilistic Data Association, Urbano et al. 2017) are drop-in alternatives that write to the same `casa["tracks"]` schema. See the [Tracking API page](../api/tracking.md) for parameters and recommended settings.
 
+!!! tip "Compare against ground-truth tracks"
+    If you loaded imported truth via `load_video(..., groundtruth_tracks_path=...)`, it lives at `casa["tracks"]["groundtruth_tracks"]` (access with `self.get_groundtruth_tracks()`) and is **not** overwritten when a backend runs. It shows up alongside your tracker output as its own source in the timelapse, `info()`, and motility, so you can compare predicted trajectories against the truth.
+
 ---
 
 ## Output preview

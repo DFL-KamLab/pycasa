@@ -7,6 +7,7 @@ from ..utils import _progress_bar
 from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_sort_track_sources
 from ..utils import _warn_yellow
+from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 _MOTILITY_KEYS = ("VCL", "VSL", "VAP", "LIN", "ALH", "WOB", "STR", "MAD")
 
@@ -384,6 +385,12 @@ def standard_motility_parameters(
     if not isinstance(tracks_root, dict):
         tracks_root = {}
     tracks_by_source = _resolve_sort_track_sources(tracks_root)
+    # Imported ground-truth tracks are not a backend, so surface them as an
+    # extra source for a true-vs-predicted motility comparison.
+    imported_gt_tracks = tracks_root.get(_GROUNDTRUTH_TRACKS_KEY)
+    if isinstance(imported_gt_tracks, dict) and imported_gt_tracks:
+        tracks_by_source = dict(tracks_by_source)
+        tracks_by_source[_GROUNDTRUTH_TRACKS_KEY] = imported_gt_tracks
 
     motility_root = casa.setdefault("motility", {})
     existing_motility_methods = [
@@ -437,6 +444,11 @@ def standard_motility_parameters(
         )
 
     for source_name in ordered_sources:
+        source_backend = (
+            "imported"
+            if source_name == _GROUNDTRUTH_TRACKS_KEY
+            else tracking_backend
+        )
         tracks_for_source = tracks_by_source.get(source_name, {})
         if not isinstance(tracks_for_source, dict) or not tracks_for_source:
             motility_root[result_key][source_name] = {}
@@ -480,7 +492,7 @@ def standard_motility_parameters(
         for track_id in _progress_bar(
             valid_track_ids,
             total=len(valid_track_ids),
-            desc=f"Motility ({tracking_backend}:{source_name})",
+            desc=f"Motility ({source_backend}:{source_name})",
             unit="track",
             leave=True,
             enabled=show_progress,
@@ -523,7 +535,7 @@ def standard_motility_parameters(
         }
         if verbose:
             _print_motility_parameter_summary(
-                tracking_backend=tracking_backend,
+                tracking_backend=source_backend,
                 source_name=source_name,
                 summary=source_summary,
                 converted_units=(scale is not None),

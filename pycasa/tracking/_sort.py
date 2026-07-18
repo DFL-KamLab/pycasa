@@ -8,6 +8,8 @@ from ..utils import _progress_bar
 from ..utils import _resolve_active_predicted_detection_method
 from ..utils import _ensure_video_dimensions
 from ..utils import _msg_yellow, _warn_yellow
+from ..utils import _clear_backend_tracks
+from ..utils import _KNOWN_TRACKING_BACKENDS
 
 
 def _detection_to_bbox(det: Any, width: int, height: int) -> list[float] | None:
@@ -234,13 +236,17 @@ def sort(
     has_detections = bool(predicted_detections)
 
     tracks_root = casa.setdefault("tracks", {})
-    existing_backends = [k for k, v in tracks_root.items() if isinstance(v, dict)]
+    existing_backends = [
+        k
+        for k in _KNOWN_TRACKING_BACKENDS
+        if isinstance(tracks_root.get(k), dict)
+    ]
     if existing_backends:
         _warn_yellow(
             f"Previous tracking result overwritten "
             f"({', '.join(existing_backends)} -> sort)."
         )
-    tracks_root.clear()
+    _clear_backend_tracks(tracks_root)
     tracks_root["sort"] = {}
     sort_root = tracks_root["sort"]
 

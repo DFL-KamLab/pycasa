@@ -8,7 +8,7 @@
 - Session namespaces: `self.io`, `self.preprocessing`, `self.detection`, `self.tracking`, `self.motility`, `self.assessment`, `self.visualization`.
 - Session inspection/state methods:
   `info`, `copy`, `set_um_per_px`, `get_casa`, `get_meta`, `get_video`, `get_detections`,
-  `get_groundtruth`, `get_tracks`, `get_motility`, `get_assessment`.
+  `get_groundtruth`, `get_tracks`, `get_groundtruth_tracks`, `get_motility`, `get_assessment`.
 
 ## Core Pattern
 
@@ -54,6 +54,7 @@ Each namespace has its own API page (see the nav). The concrete session-level st
         - get_detections
         - get_groundtruth
         - get_tracks
+        - get_groundtruth_tracks
         - get_motility
         - get_assessment
 

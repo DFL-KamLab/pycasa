@@ -12,6 +12,7 @@ from ..utils import _import_matplotlib_for_visualization
 from ..utils import _resolve_active_sort_source_name
 from ..utils import _resolve_sort_track_sources
 from ..utils import _resolve_visualization_source
+from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 
 def _track_sort_key(track_id: str) -> tuple[int, int, str]:
@@ -111,9 +112,16 @@ def interactive_motility_calculator(
     tracks_root = casa.get("tracks", {})
     if not isinstance(tracks_root, dict):
         tracks_root = {}
-    track_sources = _resolve_sort_track_sources(tracks_root)
+    track_sources = dict(_resolve_sort_track_sources(tracks_root))
+    # Imported ground-truth tracks are not a backend, so surface them here too.
+    imported_gt_tracks = tracks_root.get(_GROUNDTRUTH_TRACKS_KEY)
+    if isinstance(imported_gt_tracks, dict) and imported_gt_tracks:
+        track_sources[_GROUNDTRUTH_TRACKS_KEY] = imported_gt_tracks
     if not track_sources:
-        raise RuntimeError("No active tracks found under 'sort'. Run tracking first.")
+        raise RuntimeError(
+            "No tracks found. Run tracking first, or load imported "
+            "ground-truth tracks via load_video(groundtruth_tracks_path=...)."
+        )
 
     parsed_tracks_by_source: dict[str, dict[str, dict[int, np.ndarray]]] = {}
     eligible_ids_by_source: dict[str, list[str]] = {}

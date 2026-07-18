@@ -12,6 +12,7 @@ from ..utils import get_meta
 from ..utils import get_motility
 from ..utils import get_tracks
 from ..utils import get_video
+from ..utils import _GROUNDTRUTH_TRACKS_KEY
 from ..utils import _print_casa_info
 from ..utils import set_um_per_px
 from .assessment import _SessionAssessmentNamespace
@@ -87,6 +88,16 @@ class Casa:
     def get_tracks(self, *, backend: str | None = None) -> dict[str, Any]:
         """Return all tracks or one backend bucket (for example ``sort``)."""
         return get_tracks(self._as_dict(), backend=backend)
+
+    def get_groundtruth_tracks(self) -> dict[str, Any]:
+        """Return imported ground-truth tracks (``casa['tracks']['groundtruth_tracks']``).
+
+        These are persistent identities read from label files via
+        ``load_video(..., groundtruth_tracks_path=...)``, distinct from
+        ``casa['tracks'][backend]['groundtruth']`` (tracks a backend computed
+        from groundtruth detections).
+        """
+        return get_tracks(self._as_dict(), backend=_GROUNDTRUTH_TRACKS_KEY)
 
     def get_motility(self) -> dict[str, Any]:
         """Return ``casa['motility']``."""

@@ -21,7 +21,9 @@ import numpy as np
 
 from .._core._casa import _ensure_casa
 from ..utils import (
+    _clear_backend_tracks,
     _ensure_video_dimensions,
+    _KNOWN_TRACKING_BACKENDS,
     _msg_yellow,
     _progress_bar,
     _resolve_active_predicted_detection_method,
@@ -1276,13 +1278,17 @@ def jpdaf(
     has_detections = bool(predicted_detections)
 
     tracks_root = casa.setdefault("tracks", {})
-    existing_backends = [k for k, v in tracks_root.items() if isinstance(v, dict)]
+    existing_backends = [
+        k
+        for k in _KNOWN_TRACKING_BACKENDS
+        if isinstance(tracks_root.get(k), dict)
+    ]
     if existing_backends:
         _warn_yellow(
             f"Previous tracking result overwritten "
             f"({', '.join(existing_backends)} -> jpdaf)."
         )
-    tracks_root.clear()
+    _clear_backend_tracks(tracks_root)
     tracks_root["jpdaf"] = {}
     jpdaf_root = tracks_root["jpdaf"]
 

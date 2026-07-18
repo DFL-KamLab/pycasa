@@ -181,7 +181,7 @@ def load_default_data(
 
     return load_video(
         video_path=str(paths["video_path"]),
-        groundtruth_path=str(paths["groundtruth_path"]),
+        groundtruth_detections_path=str(paths["groundtruth_path"]),
         initial_frame=initial_frame,
         final_frame=final_frame,
         sampling_rate=sampling_rate,

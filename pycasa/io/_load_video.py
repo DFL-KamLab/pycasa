@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Any
 from typing import TYPE_CHECKING
@@ -9,6 +10,7 @@ from ..utils import _progress_bar
 from ..utils import _ensure_import
 from ..utils import _ensure_bgr
 from ..utils import set_um_per_px
+from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 if TYPE_CHECKING:
     from ..casa import Casa
@@ -17,22 +19,62 @@ SUPPORTED_MEDIA_TYPES = (".avi", ".mp4", ".mov", ".mkv", ".flv", ".wmv")
 
 
 
+def _frame_index_from_filename(name: str, positional_fallback: int) -> int:
+    """Derive a global frame index from a label file name.
+
+    Uses the last integer group found in ``name`` (e.g. ``82_frame_1000`` ->
+    ``1000``, ``..._gt_frame-0`` -> ``0``, ``60_frame_5_with_ftid`` -> ``5``).
+    When the name contains no digits, ``positional_fallback`` is returned so
+    files can still be ordered by their position in the sorted listing.
+
+    Parameters:
+        name (str):
+            File name (with or without extension).
+        positional_fallback (int):
+            Index to use when ``name`` has no parseable integer group.
+
+    Returns:
+        int:
+            The resolved global frame index.
+    """
+    matches = re.findall(r"\d+", name)
+    if matches:
+        return int(matches[-1])
+    return positional_fallback
+
+
+def _iter_label_files(directory_path: str) -> list[tuple[int, "Path"]]:
+    """Return ``(frame_index, path)`` pairs for label files, ordered by frame.
+
+    Collects every ``*.txt`` file in ``directory_path``, derives a frame index
+    from each file name via :func:`_frame_index_from_filename`, and returns the
+    list sorted by that frame index. Returns an empty list when the directory
+    does not exist.
+    """
+    directory = Path(directory_path)
+    if not directory.is_dir():
+        return []
+
+    txt_files = sorted(
+        (p for p in directory.iterdir() if p.is_file() and p.suffix.lower() == ".txt"),
+        key=lambda p: p.name,
+    )
+    indexed = [
+        (_frame_index_from_filename(path.stem, positional), path)
+        for positional, path in enumerate(txt_files)
+    ]
+    indexed.sort(key=lambda item: item[0])
+    return indexed
+
+
 def _load_groundtruth_detections(
-    groundtruth_path: str,
-    file_header: str = "frame-",
-    zero_based_index: bool = True,
+    groundtruth_detections_path: str,
 ) -> dict[str, list[list[str]]]:
     """Load frame-indexed detections from per-frame text files.
 
     Parameters:
-        groundtruth_path (str):
-            Directory containing text files with one detection per line.
-        file_header (str, optional):
-            File-name token used to parse frame index from file stem.
-            Default expects names like ``frame-170.txt``.
-        zero_based_index (bool, optional):
-            Whether parsed frame indices are already zero-based. If ``False``,
-            each parsed index is shifted by ``-1``.
+        groundtruth_detections_path (str):
+            Directory containing ``*.txt`` files with one detection per line.
 
     Returns:
         dict[str, list[list[str]]]:
@@ -40,28 +82,16 @@ def _load_groundtruth_detections(
             whitespace-split list of tokens preserved as strings.
 
     Notes:
-        - Non-matching files are ignored.
-        - If ``groundtruth_path`` does not exist, an empty mapping is returned.
+        - Every ``*.txt`` file is used; the frame index is taken from the last
+          integer group in the file name (see :func:`_frame_index_from_filename`),
+          so folders named ``frame-170.txt``, ``82_frame_170.txt``, etc. all work.
+        - If ``groundtruth_detections_path`` does not exist, an empty mapping is
+          returned.
         - This parser is intentionally permissive for legacy label formats.
     """
     locations: dict[str, list[list[str]]] = {}
-    directory = Path(groundtruth_path)
-    if not directory.is_dir():
-        return locations
 
-    for file_path in sorted(directory.iterdir(), key=lambda p: p.name):
-        if not file_path.is_file() or file_header not in file_path.name:
-            continue
-
-        frame_token = file_path.stem.split(file_header)[-1]
-        try:
-            frame_index = int(frame_token)
-        except ValueError:
-            continue
-
-        if not zero_based_index:
-            frame_index -= 1
-
+    for frame_index, file_path in _iter_label_files(groundtruth_detections_path):
         rows: list[list[str]] = []
         with file_path.open("r", encoding="utf-8") as file_handle:
             for line in file_handle:
@@ -73,8 +103,79 @@ def _load_groundtruth_detections(
         locations[str(frame_index)] = rows
 
     return locations
-    
-    
+
+
+def _load_groundtruth_tracks(
+    groundtruth_tracks_path: str,
+    width: int,
+    height: int,
+) -> dict[str, dict[str, list[float]]]:
+    """Load ground-truth tracks from per-frame YOLO-with-id text files.
+
+    Each label file holds one object per line in the form
+    ``track_id class cx cy w h`` (coordinates normalized to ``[0, 1]``). The
+    same ``track_id`` recurring across frames defines a persistent identity.
+    Only the box center is retained (pixel space) so the result matches the
+    shape produced by the tracking backends:
+    ``{track_id: {frame: [center_x, center_y]}}``.
+
+    Parameters:
+        groundtruth_tracks_path (str):
+            Directory containing ``*.txt`` files with one object per line,
+            each prefixed by a persistent track id.
+        width (int):
+            Video frame width in pixels, used to de-normalize ``cx``.
+        height (int):
+            Video frame height in pixels, used to de-normalize ``cy``.
+
+    Returns:
+        dict[str, dict[str, list[float]]]:
+            Mapping ``track_id -> {frame_str: [center_x, center_y]}`` with track
+            ids normalized to ``t0``, ``t1``, ... in order of first appearance.
+            Returns an empty mapping when the directory does not exist.
+
+    Notes:
+        - The frame index is taken from the file name (see
+          :func:`_frame_index_from_filename`).
+        - Rows shorter than ``track_id class cx cy`` (4 tokens) are skipped.
+        - Coordinates already in pixel space (any value ``> 1``) are used as-is.
+        - Full bounding boxes (``w``/``h``) and class are intentionally dropped
+          for now; only centers are stored.
+    """
+    # Preserve first-appearance order of raw ids across increasing frames.
+    raw_tracks: dict[str, dict[str, list[float]]] = {}
+    first_seen: dict[str, tuple[int, int]] = {}
+
+    for frame_index, file_path in _iter_label_files(groundtruth_tracks_path):
+        frame_key = str(frame_index)
+        with file_path.open("r", encoding="utf-8") as file_handle:
+            for line_number, line in enumerate(file_handle):
+                tokens = line.strip().split()
+                if len(tokens) < 4:
+                    continue
+                raw_id = tokens[0]
+                try:
+                    cx = float(tokens[2])
+                    cy = float(tokens[3])
+                except ValueError:
+                    continue
+
+                if 0.0 <= cx <= 1.0 and 0.0 <= cy <= 1.0:
+                    cx *= width
+                    cy *= height
+
+                if raw_id not in raw_tracks:
+                    raw_tracks[raw_id] = {}
+                    first_seen[raw_id] = (frame_index, line_number)
+                raw_tracks[raw_id][frame_key] = [cx, cy]
+
+    ordered_ids = sorted(raw_tracks.keys(), key=lambda rid: first_seen[rid])
+    tracks: dict[str, dict[str, list[float]]] = {}
+    for new_index, raw_id in enumerate(ordered_ids):
+        tracks[f"t{new_index}"] = raw_tracks[raw_id]
+    return tracks
+
+
 def _resolve_frame_range(
     total_number_frame: int,
     initial_frame: int,
@@ -124,7 +225,8 @@ def _resolve_frame_range(
 
 def load_video(
     video_path: str,
-    groundtruth_path: str | None = None,
+    groundtruth_detections_path: str | None = None,
+    groundtruth_tracks_path: str | None = None,
     initial_frame: int = 0,
     final_frame: int | None = None,
     sampling_rate: float | None = None,
@@ -139,10 +241,18 @@ def load_video(
         video_path (str):
             Path to video file. Supported extensions are listed in
             ``SUPPORTED_MEDIA_TYPES``.
-        groundtruth_path (str | None, optional):
-            Optional directory containing frame-level groundtruth text files.
-            If provided, detections are loaded under
-            ``casa["detections"]["groundtruth"]``.
+        groundtruth_detections_path (str | None, optional):
+            Optional directory containing frame-level groundtruth detection
+            text files (YOLO ``class cx cy w h`` rows). If provided, detections
+            are loaded under ``casa["detections"]["groundtruth"]``.
+        groundtruth_tracks_path (str | None, optional):
+            Optional directory containing frame-level groundtruth track text
+            files (YOLO rows prefixed with a persistent ``track_id``). If
+            provided, imported truth tracks are loaded under
+            ``casa["tracks"]["groundtruth_tracks"]`` as
+            ``{track_id: {frame: [center_x, center_y]}}``. This is distinct from
+            ``casa["tracks"][backend]["groundtruth"]``, which holds tracks a
+            backend computed from groundtruth detections.
         initial_frame (int, optional):
             First frame index to read (0-based). Defaults to ``0``.
         final_frame (int | None, optional):
@@ -165,8 +275,10 @@ def load_video(
 
     Returns:
         Casa:
-            A fluent ``Casa`` object with ``meta`` and ``video`` populated,
-            plus optional ``detections["groundtruth"]`` if groundtruth path is used.
+            A fluent ``Casa`` object with ``meta`` and ``video`` populated, plus
+            optional ``detections["groundtruth"]`` and/or
+            ``tracks["groundtruth_tracks"]`` if the corresponding groundtruth
+            paths are provided.
 
     Raises:
         FileNotFoundError:
@@ -307,11 +419,18 @@ def load_video(
             "original_video": original_video,
         }
     )
-    if groundtruth_path is not None:
+    if groundtruth_detections_path is not None:
         casa["detections"]["groundtruth"] = _load_groundtruth_detections(
-            groundtruth_path
+            groundtruth_detections_path
         )
-        casa["detections"]["groundtruth_path"] = str(groundtruth_path)
+        casa["detections"]["groundtruth_detections_path"] = str(
+            groundtruth_detections_path
+        )
+    if groundtruth_tracks_path is not None:
+        casa["tracks"][_GROUNDTRUTH_TRACKS_KEY] = _load_groundtruth_tracks(
+            groundtruth_tracks_path, width, height
+        )
+        casa["meta"]["groundtruth_tracks_path"] = str(groundtruth_tracks_path)
     if verbose:
         fps_text = (
             f"{resolved_sampling_rate:.2f}"
@@ -325,7 +444,7 @@ def load_video(
             f"size={width}x{height}, "
             f"fps={fps_text}"
         )
-        if groundtruth_path is not None:
+        if groundtruth_detections_path is not None:
             groundtruth = casa.get("detections", {}).get("groundtruth", {})
             frames_with_labels = 0
             total_labels = 0
@@ -337,9 +456,27 @@ def load_video(
                     if isinstance(rows, list)
                 )
             print(
-                "Groundtruth summary: "
+                "Groundtruth detections summary: "
                 f"frames_with_labels={frames_with_labels}, "
                 f"labels={total_labels}"
+            )
+        if groundtruth_tracks_path is not None:
+            gt_tracks = casa.get("tracks", {}).get(_GROUNDTRUTH_TRACKS_KEY, {})
+            track_count = len(gt_tracks) if isinstance(gt_tracks, dict) else 0
+            frames_covered = 0
+            if isinstance(gt_tracks, dict):
+                frames_covered = len(
+                    {
+                        frame
+                        for points in gt_tracks.values()
+                        if isinstance(points, dict)
+                        for frame in points
+                    }
+                )
+            print(
+                "Groundtruth tracks summary: "
+                f"tracks={track_count}, "
+                f"frames_covered={frames_covered}"
             )
 
     from ..casa import Casa

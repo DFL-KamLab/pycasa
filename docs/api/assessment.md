@@ -4,7 +4,7 @@ Assessment scores predicted detections against groundtruth using Hungarian minim
 
 Assessment requires:
 - Predicted detections from a detection method (e.g., `self.detection.yolo()`), and
-- Groundtruth detections loaded via `load_default_data()` or `load_video(..., groundtruth_path=...)`.
+- Groundtruth detections loaded via `load_default_data()` or `load_video(..., groundtruth_detections_path=...)`.
 
 !!! note "This page is generated from the code"
     The signature, parameters, and description below are rendered directly from the

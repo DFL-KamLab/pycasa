@@ -109,6 +109,9 @@ class _SessionVisualizationNamespace:
             - Play/Pause button: animate frames at session sampling rate.
             - Checkboxes: toggle detections/tracks/groundtruth overlays.
             - Keyboard: left/right arrows step frames, space toggles play.
+            Track sources include any active backend sources plus imported
+            ground-truth tracks (``casa["tracks"]["groundtruth_tracks"]``), each
+            with its own toggle; enable with ``show_tracks=True``.
 
         Examples:
             >>> session = session.visualization.timelapse(
@@ -139,7 +142,11 @@ class _SessionVisualizationNamespace:
         frame_rate: float | None = None,
         smoothing_window: int = 5,
     ) -> "Casa":
-        """Open an interactive motility-parameter explorer for active SORT tracks.
+        """Open an interactive motility-parameter explorer for tracked sources.
+
+        Works on the active tracking backend's sources and on imported
+        ground-truth tracks (``casa["tracks"]["groundtruth_tracks"]``); when more
+        than one source is available, a source switcher is shown.
 
         Parameters:
             frame_rate (float | None, optional):
@@ -158,7 +165,7 @@ class _SessionVisualizationNamespace:
             ValueError:
                 If video width/height metadata cannot be resolved.
             RuntimeError:
-                If active SORT tracks are missing or no track has enough points
+                If no tracks are available or no track has enough points
                 for interactive exploration.
             ImportError:
                 If ``matplotlib`` is unavailable.

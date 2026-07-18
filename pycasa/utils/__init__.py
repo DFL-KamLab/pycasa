@@ -26,6 +26,9 @@ from ._normalization_helpers import (
 )
 from ._progress_helpers import _progress_bar
 from ._setter_helpers import set_um_per_px
+from ._tracking_helpers import _GROUNDTRUTH_TRACKS_KEY
+from ._tracking_helpers import _KNOWN_TRACKING_BACKENDS
+from ._tracking_helpers import _clear_backend_tracks
 from ._tracking_helpers import _is_track_map
 from ._tracking_helpers import _resolve_active_sort_source_name
 from ._tracking_helpers import _resolve_active_sort_tracks
@@ -53,6 +56,9 @@ __all__ = [
     "_predicted_detection_keys",
     "_clear_predicted_detections",
     "_resolve_active_predicted_detection_method",
+    "_GROUNDTRUTH_TRACKS_KEY",
+    "_KNOWN_TRACKING_BACKENDS",
+    "_clear_backend_tracks",
     "_is_track_map",
     "_resolve_active_sort_source_name",
     "_resolve_active_sort_tracks",

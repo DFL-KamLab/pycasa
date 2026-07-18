@@ -1,7 +1,7 @@
 from typing import Any
 
 
-_GROUNDTRUTH_KEYS = {"groundtruth", "groundtruth_path"}
+_GROUNDTRUTH_KEYS = {"groundtruth", "groundtruth_detections_path"}
 
 
 def _predicted_detection_keys(detections_root: dict[str, Any]) -> list[str]:

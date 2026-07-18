@@ -13,6 +13,8 @@ from ..utils import _progress_bar
 from ..utils import _resolve_active_predicted_detection_method
 from ..utils import _ensure_video_dimensions
 from ..utils import _warn_yellow
+from ..utils import _clear_backend_tracks
+from ..utils import _KNOWN_TRACKING_BACKENDS
 from ._sort import _detection_to_bbox, _get_frame_detections, _resolve_tracking_frame_range
 
 _DEEPSORT_REPO_DIR = Path.home() / ".pycasa" / "deepsort"
@@ -157,13 +159,17 @@ def deepsort(
     has_detections = bool(predicted_detections)
 
     tracks_root = casa.setdefault("tracks", {})
-    existing_backends = [k for k, v in tracks_root.items() if isinstance(v, dict)]
+    existing_backends = [
+        k
+        for k in _KNOWN_TRACKING_BACKENDS
+        if isinstance(tracks_root.get(k), dict)
+    ]
     if existing_backends:
         _warn_yellow(
             f"Previous tracking result overwritten "
             f"({', '.join(existing_backends)} -> deepsort)."
         )
-    tracks_root.clear()
+    _clear_backend_tracks(tracks_root)
     tracks_root["deepsort"] = {}
     deepsort_root = tracks_root["deepsort"]
 

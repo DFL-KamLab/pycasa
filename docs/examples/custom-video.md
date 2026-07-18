@@ -23,11 +23,27 @@ Add `[yolo]` if you plan to use YOLOv5 for detection.
 
 ## Groundtruth format
 
-If you have groundtruth annotations, pass a folder path to `groundtruth_path`. The folder must contain one plain-text file per frame named `frame_NNNN.txt` (zero-padded to match the frame index). Each file contains one detection row per line in the legacy normalized YOLO format:
+Groundtruth **detections** and groundtruth **tracks** are imported independently, via two separate arguments.
+
+### Groundtruth detections — `groundtruth_detections_path`
+
+A folder of one plain-text file per frame. Each file contains one detection row per line in normalized YOLO format:
 
 ```
 <label> <norm_cx> <norm_cy> <norm_w> <norm_h>
 ```
+
+The frame index for each file is taken from the **last integer group** in its file name, so `frame-170.txt`, `82_frame_170.txt`, etc. all work (no fixed naming or zero-padding required). Loaded under `casa["detections"]["groundtruth"]` and used by `assessment.classification()`.
+
+### Groundtruth tracks — `groundtruth_tracks_path`
+
+A folder of per-frame files in the same YOLO layout but **prefixed with a persistent track id**, where the same id recurring across frames defines an identity:
+
+```
+<track_id> <label> <norm_cx> <norm_cy> <norm_w> <norm_h>
+```
+
+Loaded under `casa["tracks"]["groundtruth_tracks"]` as `{track_id: {frame: [center_x, center_y]}}` (centers only, for now), with ids normalized to `t0, t1, ...`. Access with `self.get_groundtruth_tracks()`. This imported truth coexists with any tracker output and appears as its own source in the timelapse, `info()`, motility, and the motility visualizations.
 
 All coordinates are normalized to `[0, 1]` relative to frame width/height. Frames with no detections can be represented by an empty file or omitted entirely.
 
@@ -52,7 +68,8 @@ import pycasa as pc
 # Load a custom video with optional groundtruth and calibration
 self = pc.io.load_video(
     video_path="path/to/video.avi",
-    groundtruth_path="path/to/groundtruth_folder",  # optional
+    groundtruth_detections_path="path/to/groundtruth_detections_folder",  # optional
+    groundtruth_tracks_path="path/to/groundtruth_tracks_folder",          # optional
     initial_frame=0,
     final_frame=300,                # None = read to end of file
     sampling_rate=50.0,             # frames per second (optional override)
@@ -80,7 +97,8 @@ self.info()
 | Parameter | Type | Default | When to use |
 |-----------|------|---------|-------------|
 | `video_path` | `str` | *(required)* | Path to the input video file. |
-| `groundtruth_path` | `str \| None` | `None` | Folder of per-frame `.txt` annotation files. Enables `assessment.classification()`. |
+| `groundtruth_detections_path` | `str \| None` | `None` | Folder of per-frame `.txt` detection files (`label cx cy w h`). Enables `assessment.classification()`. |
+| `groundtruth_tracks_path` | `str \| None` | `None` | Folder of per-frame `.txt` track files (`track_id label cx cy w h`). Imported truth tracks; access via `self.get_groundtruth_tracks()`. |
 | `initial_frame` / `final_frame` | `int \| None` | `0` / `None` | Clip to a sub-range of the video. Frames outside the range are not loaded. |
 | `sampling_rate` | `float \| None` | `None` | Override the FPS stored in the video container. Used by motility metric computation. |
 | `um_per_px` | `float \| None` | `None` | Pixel-to-micron calibration factor. Required for micron-unit motility output. Can also be set later with `self.set_um_per_px(value)`. |

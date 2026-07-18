@@ -4,6 +4,25 @@ from ._detection_helpers import _resolve_active_predicted_detection_method
 
 _KNOWN_TRACKING_BACKENDS = ("sort", "deepsort", "jpdaf")
 
+# Reserved top-level key under ``casa["tracks"]`` for imported ground-truth
+# tracks (persistent identities read from label files). It is NOT a tracking
+# backend and must survive backend runs, unlike ``tracks[backend]["groundtruth"]``
+# which holds tracks a backend computed from groundtruth detections.
+_GROUNDTRUTH_TRACKS_KEY = "groundtruth_tracks"
+
+
+def _clear_backend_tracks(tracks_root: dict[str, Any]) -> None:
+    """Remove computed backend tracks in place, preserving reserved keys.
+
+    Deletes only the keys in ``_KNOWN_TRACKING_BACKENDS`` so that imported
+    ground-truth tracks stored at ``_GROUNDTRUTH_TRACKS_KEY`` (and any other
+    non-backend entry) are left intact when a tracking backend re-runs.
+    """
+    if not isinstance(tracks_root, dict):
+        return
+    for backend in _KNOWN_TRACKING_BACKENDS:
+        tracks_root.pop(backend, None)
+
 
 def _resolve_active_tracking_backend(tracks_root: dict[str, Any]) -> str | None:
     """Return the name of the active tracking backend stored in ``tracks_root``.
