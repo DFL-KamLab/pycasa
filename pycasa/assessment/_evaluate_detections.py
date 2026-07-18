@@ -82,7 +82,7 @@ def _extract_xy_points(entries: list[Any], width: int, height: int) -> np.ndarra
 def _format_frame_ranges(frames: list[int]) -> str:
     """Build compact frame-range text (legacy helper parity)."""
     if not frames:
-        return "No frames available for classification assessment."
+        return "No frames available for detection assessment."
 
     sorted_frames = sorted(frames)
     ranges: list[str] = []
@@ -97,7 +97,7 @@ def _format_frame_ranges(frames: list[int]) -> str:
         start = frame
         prev = frame
     ranges.append(f"{start}" if start == prev else f"{start}-{prev}")
-    return f"Classification assessment is performed on frames: {', '.join(ranges)}"
+    return f"Detection assessment is performed on frames: {', '.join(ranges)}"
 
 
 def _resolve_eval_frames(
@@ -137,15 +137,15 @@ def _compute_fscore(precision: float, recall: float, beta: float) -> float:
     return (1 + beta**2) * (precision * recall) / denom
 
 
-def _print_classification_results(
+def _print_detection_assessment_results(
     detection_method: str | None,
     metrics: dict[str, Any],
     frame_summary: str,
 ) -> None:
-    """Print a concise human-readable classification summary."""
+    """Print a concise human-readable detection-assessment summary."""
     method_label = detection_method or "none"
     print(
-        "Classification results "
+        "Detection assessment results "
         f"(detection_method={method_label}): "
         f"tp={metrics['tp']}, "
         f"fp={metrics['fp']}, "
@@ -158,11 +158,11 @@ def _print_classification_results(
     print(frame_summary)
 
 
-def classification(
+def evaluate_detections(
     casa: dict[str, Any],
     match_min_distance_pixel: float | None = None,
 ) -> dict[str, Any]:
-    """Compute classification assessment metrics against groundtruth detections.
+    """Compute detection assessment metrics against groundtruth detections.
 
     Parameters:
         casa (dict[str, Any]):
@@ -174,9 +174,9 @@ def classification(
 
     Returns:
         dict[str, Any]:
-            Input ``casa`` with classification metrics stored under:
-            ``casa['assessment']['classification']`` and
-            per-frame logs under ``casa['assessment']['classification_log']``.
+            Input ``casa`` with detection metrics stored under:
+            ``casa['assessment']['detection']`` and
+            per-frame logs under ``casa['assessment']['detection_log']``.
 
     Notes:
         This follows legacy pyCASA Hungarian-matching logic and metric formulas.
@@ -204,7 +204,7 @@ def classification(
         if active_detection_method is None:
             print(
                 "Warning: no active predicted detection method was found in "
-                "casa['detections']. Classification will run with empty predictions."
+                "casa['detections']. Detection assessment will run with empty predictions."
             )
         else:
             print(
@@ -279,7 +279,7 @@ def classification(
                 )
             except ImportError as exc:
                 raise ImportError(
-                    "SciPy is required for classification assessment matching. "
+                    "SciPy is required for detection assessment matching. "
                     "Install with `python -m pip install -e .[detection]`."
                 ) from exc
             linear_sum_assignment = scipy_optimize.linear_sum_assignment
@@ -317,17 +317,17 @@ def classification(
     }
 
     assessment = casa.setdefault("assessment", {})
-    assessment["classification"] = metrics
-    assessment["classification_log"] = performance_metrics_log
+    assessment["detection"] = metrics
+    assessment["detection_log"] = performance_metrics_log
     frame_summary = _format_frame_ranges(all_frames)
-    assessment["last_classification"] = {
+    assessment["last_detection"] = {
         "detection_method": active_detection_method,
         "match_min_distance_pixel": match_threshold,
         "evaluated_frames": len(all_frames),
         "frame_summary": frame_summary,
     }
     casa["meta"]["last_assessment"] = {
-        "backend": "classification",
+        "backend": "detection",
         "detection_method": active_detection_method,
         "match_min_distance_pixel": match_threshold,
         "tp": metrics["tp"],
@@ -338,5 +338,5 @@ def classification(
         "F1": metrics["F1"],
         "evaluated_frames": metrics["evaluated_frames"],
     }
-    _print_classification_results(active_detection_method, metrics, frame_summary)
+    _print_detection_assessment_results(active_detection_method, metrics, frame_summary)
     return casa

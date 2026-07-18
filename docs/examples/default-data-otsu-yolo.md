@@ -113,5 +113,5 @@ print(f"Groundtruth frames loaded: {len(gt)}")
 ## What to try next
 
 - Add `self.tracking.sort()` after detection to get trajectories — see [Detection + SORT Tracking](detection-tracking.md).
-- Add `self.assessment.classification()` to score the YOLO output against the bundled groundtruth — see [Motility + Assessment](motility-assessment.md).
+- Add `self.assessment.evaluate_detections()` to score the YOLO output against the bundled groundtruth detections, or `self.assessment.evaluate_tracks()` to score trackers against imported groundtruth tracks (MOTA / IDF1) — see [Motility + Assessment](motility-assessment.md).
 - Swap in your own video — see [Load Custom Video](custom-video.md).

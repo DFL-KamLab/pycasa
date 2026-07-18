@@ -60,7 +60,8 @@ self.tracking.sort(max_age=25, min_hits=3, iou_threshold=0.1)
 self.motility.standard_motility_parameters()
 
 # --- Assess ---
-self.assessment.classification(match_min_distance_pixel=20)
+self.assessment.evaluate_detections(match_min_distance_pixel=20)   # detections vs GT detections
+# self.assessment.evaluate_tracks()   # tracks vs GT tracks (MOTA/IDF1); needs groundtruth_tracks_path
 
 # --- Visualize ---
 self.visualization.timelapse(
@@ -81,7 +82,7 @@ meta       = self.get_meta()        # sampling rate, frame range, last_* fields
 detections = self.get_detections()  # active predicted detection dict
 tracks     = self.get_tracks(backend="sort")  # SORT trajectories by source
 motility   = self.get_motility()    # standard motility parameter dicts
-assessment = self.get_assessment()  # tp, fp, fn, precision, recall, F1
+assessment = self.get_assessment()  # ["detection"]: tp/fp/fn/precision/recall/F1; ["tracking"]: MOTA/IDF1 pairs
 ```
 
 ---

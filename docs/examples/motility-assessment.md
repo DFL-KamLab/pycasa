@@ -1,6 +1,11 @@
 # Example: Motility + Assessment
 
-This example shows the full analytical half of the pycasa pipeline: computing standard CASA motility parameters from SORT trajectories, and scoring the detector against groundtruth annotations.
+This example shows the full analytical half of the pycasa pipeline: computing standard CASA motility parameters from SORT trajectories, and scoring your results against groundtruth. pycasa offers **two** assessments, which answer different questions:
+
+- **`evaluate_detections()`** — did the detector find the cells? Scores predicted detections against groundtruth detections (precision / recall / F1).
+- **`evaluate_tracks()`** — did the tracker preserve identities? Compares every track set against every other and reports MOT-style identity metrics (MOTA / IDF1).
+
+Both live under `self.assessment` and coexist in `casa["assessment"]`.
 
 ## Install
 
@@ -31,8 +36,8 @@ self.motility.standard_motility_parameters(
     overlap=0.2,       # fraction of window that overlaps with the previous window
 )
 
-# 5. Score predicted detections against groundtruth
-self.assessment.classification(match_min_distance_pixel=20)
+# 5. Score predicted detections against groundtruth detections
+self.assessment.evaluate_detections(match_min_distance_pixel=20)
 
 self.info()
 ```
@@ -120,14 +125,14 @@ The output structure:
 
 ---
 
-## Reading the assessment output
+## Reading the detection assessment output
 
 !!! note "Groundtruth requirement"
-    Assessment compares predicted detections against groundtruth. The default dataset includes groundtruth annotations. For custom videos, pass `groundtruth_detections_path=...` to `load_video()`.
+    `evaluate_detections()` compares predicted detections against groundtruth **detections**. The default dataset includes groundtruth detection annotations. For custom videos, pass `groundtruth_detections_path=...` to `load_video()`.
 
 ```python
 assessment = self.get_assessment()
-clf = assessment["classification"]
+clf = assessment["detection"]
 
 print(f"True positives  : {clf['tp']}")
 print(f"False positives : {clf['fp']}")
@@ -150,8 +155,72 @@ print(f"Evaluated frames: {clf['evaluated_frames']}")
 
 ---
 
+## Track assessment (MOTA / IDF1)
+
+`evaluate_tracks()` evaluates **identity preservation** — whether a tracker keeps one consistent ID per cell over time. It collects every track set in the session (imported groundtruth tracks plus each source of the active tracking backend) and computes MOT metrics for **every ordered pair**.
+
+!!! note "Groundtruth tracks requirement"
+    You need **at least two track sets**. Imported groundtruth **tracks** (loaded via `load_video(..., groundtruth_tracks_path=...)`) are what make the numbers true *accuracy*; without them the pairs are tracker-to-tracker *agreement* only. This is separate from the groundtruth *detections* used by `evaluate_detections()`. The optional `motmetrics` dependency is installed on demand.
+
+```python
+import pycasa as pc
+
+BASE = r"path/to/Train/60"
+
+# Load a video with BOTH groundtruth detections and groundtruth tracks
+self = pc.io.load_video(
+    BASE + r"/60.mp4",
+    groundtruth_detections_path=BASE + r"/labels",       # per-frame: label cx cy w h
+    groundtruth_tracks_path=BASE + r"/labels_ftid",       # per-frame: track_id label cx cy w h
+    um_per_px=0.24,
+)
+
+# Produce predicted tracks. Running SORT on the groundtruth detections isolates
+# tracker-only error; running it on YOLO detections measures the full pipeline.
+self.tracking.sort()                       # -> source "sort:groundtruth"
+self.detection.yolo(yolo_model="yolov5")
+self.tracking.sort()                       # -> source "sort:yolov5"
+
+# Compare all track sets against each other
+self.assessment.evaluate_tracks(match_min_distance_pixel=20)
+```
+
+This prints a MOTA matrix, an IDF1 matrix, and an "Accuracy vs truth" summary. `info()` shows the same matrices in the `[assessment]` block.
+
+### Reading the track assessment output
+
+```python
+tracking = self.get_assessment()["tracking"]
+
+print("track sets :", tracking["sources"])        # e.g. ['groundtruth_tracks', 'sort:groundtruth', 'sort:yolov5']
+print("reference  :", tracking["reference"])       # 'groundtruth_tracks' (the true identities)
+print("track count:", tracking["track_counts"])    # cells per set
+
+# Results are a matrix: pairs[ground_truth_role][prediction_role] -> metrics
+truth = tracking["reference"]
+for hyp, m in tracking["pairs"][truth].items():
+    print(f"{hyp}: MOTA={m['MOTA']}%, IDF1={m['IDF1']}%, "
+          f"switches={m['num_switches']}, fp={m['num_false_positives']}, "
+          f"fn={m['num_misses']}, frags={m['num_fragmentations']}")
+```
+
+| Metric | Definition |
+|--------|-----------|
+| `MOTA` | Multi-Object Tracking Accuracy: `1 - (FN + FP + ID-switches) / groundtruth` as a percentage. Overall per-frame correctness. **Role-dependent** — `MOTA(A,B) ≠ MOTA(B,A)`. |
+| `IDF1` | Identity F1: harmonic mean of identity precision and recall from a global identity matching. How faithfully each cell keeps a single ID. **Symmetric.** |
+| `num_switches` | Times a tracked identity is reassigned to a different groundtruth cell (ID-switches). |
+| `num_false_positives` (fp) | Predicted track points with no matching groundtruth. |
+| `num_misses` (fn) | Groundtruth track points with no matching prediction. |
+| `num_fragmentations` (frags) | Times a groundtruth track's coverage is interrupted then resumed. |
+| `MOTP` | Mean matched center-to-center distance (pixels) — localization precision. |
+
+!!! tip "Which row matters"
+    Only the **`groundtruth_tracks` row** is true accuracy. The gap between `sort:groundtruth` (SORT on perfect detections — tracker-only error) and `sort:yolov5` (full pipeline) is the accuracy lost to detection errors. Off-diagonal rows are tracker-to-tracker agreement: read their **IDF1** (symmetric), not their MOTA.
+
+---
+
 ## What to try next
 
 - [Visualization API](../api/visualization.md) — use `motility_radar()` and `motility_density_scatter()` to plot aggregate metric summaries.
 - [Interactive motility calculator](../api/visualization.md) — explore per-track, per-window metric histories in an interactive panel.
-- [Assessment API](../api/assessment.md) — full parameter reference for `classification()`.
+- [Assessment API](../api/assessment.md) — full parameter reference for `evaluate_detections()` and `evaluate_tracks()`.

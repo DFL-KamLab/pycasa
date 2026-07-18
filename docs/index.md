@@ -162,7 +162,9 @@ self.tracking.sort()
 self.motility.standard_motility_parameters()
 
 # 6. Assess — compare predictions against groundtruth
-self.assessment.classification()
+self.assessment.evaluate_detections()   # detections vs GT detections (precision/recall/F1)
+# self.assessment.evaluate_tracks()     # tracks vs GT tracks (MOTA/IDF1) — needs
+#                                      # load_video(..., groundtruth_tracks_path=...)
 
 # 7. Visualize — browse frames with overlays
 self.visualization.timelapse(video_type="original", show_detections=True, show_tracks=True)

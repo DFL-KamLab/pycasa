@@ -11,9 +11,11 @@ Outputs:
     ``meta['last_assessment']``.
 
 Methods:
-    - ``classification(...)``
+    - ``evaluate_detections(...)`` — predicted detections vs groundtruth detections.
+    - ``evaluate_tracks(...)`` — predicted tracks vs imported groundtruth tracks (MOTA/IDF1).
 """
 
-from ._classification import classification
+from ._evaluate_detections import evaluate_detections
+from ._evaluate_tracks import evaluate_tracks
 
-__all__ = ["classification"]
+__all__ = ["evaluate_detections", "evaluate_tracks"]

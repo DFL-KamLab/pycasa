@@ -10,8 +10,8 @@ from ._tracking_helpers import _resolve_active_tracking_backend
 from ._tracking_helpers import _resolve_sort_track_sources
 
 
-def _coerce_classification_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
-    """Extract compact, stable classification fields for info display."""
+def _coerce_detection_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Extract compact, stable detection-assessment fields for info display."""
     return {
         "tp": metrics.get("tp"),
         "fp": metrics.get("fp"),
@@ -20,6 +20,34 @@ def _coerce_classification_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         "recall": metrics.get("recall"),
         "F1": metrics.get("F1"),
         "evaluated_frames": metrics.get("evaluated_frames"),
+    }
+
+
+def _coerce_track_metrics(tracking: dict[str, Any]) -> dict[str, Any]:
+    """Extract the full pairwise tracking-assessment summary for info display."""
+    pairs = tracking.get("pairs")
+    reference = tracking.get("reference")
+    rows: list[dict[str, Any]] = []
+    if isinstance(pairs, dict) and reference and isinstance(pairs.get(reference), dict):
+        for hyp, metrics in pairs[reference].items():
+            if not isinstance(metrics, dict):
+                continue
+            rows.append({
+                "hyp": hyp,
+                "MOTA": metrics.get("MOTA"),
+                "IDF1": metrics.get("IDF1"),
+                "num_switches": metrics.get("num_switches"),
+                "fp": metrics.get("num_false_positives"),
+                "fn": metrics.get("num_misses"),
+                "frags": metrics.get("num_fragmentations"),
+            })
+    return {
+        "reference": reference,
+        "sources": tracking.get("sources") or [],
+        "track_counts": tracking.get("track_counts") or {},
+        "match_min_distance_pixel": tracking.get("match_min_distance_pixel"),
+        "pairs": pairs if isinstance(pairs, dict) else {},
+        "rows": rows,
     }
 
 
@@ -267,10 +295,10 @@ def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
     motility_methods = sorted(
         key for key, value in motility.items() if isinstance(value, dict)
     )
-    assessment_methods = (
-        ["classification"]
-        if isinstance(assessment.get("classification"), dict)
-        else []
+    assessment_methods = sorted(
+        key
+        for key in ("detection", "tracking")
+        if isinstance(assessment.get(key), dict)
     )
     methods = {
         "detection": detection_methods,
@@ -290,19 +318,27 @@ def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
     tracking_info = _build_tracking_summary(tracks, meta_last_tracking)
     motility_info = _build_motility_summary(motility, meta_last_motility, meta_last_tracking)
 
-    classification_data = assessment.get("classification")
-    if not isinstance(classification_data, dict):
-        classification_data = {}
-    last_classification = assessment.get("last_classification")
-    if not isinstance(last_classification, dict):
-        last_classification = {}
+    detection_data = assessment.get("detection")
+    if not isinstance(detection_data, dict):
+        detection_data = {}
+    last_detection = assessment.get("last_detection")
+    if not isinstance(last_detection, dict):
+        last_detection = {}
+    tracking_assessment_data = assessment.get("tracking")
+    if not isinstance(tracking_assessment_data, dict):
+        tracking_assessment_data = {}
     assessment_info = {
-        "detection_method": last_classification.get("detection_method"),
-        "match_min_distance_pixel": last_classification.get("match_min_distance_pixel"),
-        "frame_summary": last_classification.get("frame_summary"),
-        "classification": (
-            _coerce_classification_metrics(classification_data)
-            if classification_data
+        "detection_method": last_detection.get("detection_method"),
+        "match_min_distance_pixel": last_detection.get("match_min_distance_pixel"),
+        "frame_summary": last_detection.get("frame_summary"),
+        "detection": (
+            _coerce_detection_metrics(detection_data)
+            if detection_data
+            else {}
+        ),
+        "tracking": (
+            _coerce_track_metrics(tracking_assessment_data)
+            if tracking_assessment_data
             else {}
         ),
     }
@@ -544,31 +580,76 @@ def _print_casa_info(info: dict[str, Any]) -> None:
 
         if section == "assessment":
             detection_method = section_data.get("detection_method") or "none"
-            metrics = section_data.get("classification")
-            if not isinstance(metrics, dict) or not metrics:
-                print("- classification: none")
-                continue
+            metrics = section_data.get("detection")
+            track_metrics = section_data.get("tracking")
+            printed_any = False
 
-            print(f"- classification: {detection_method}")
-            print(
-                "- "
-                f"tp={metrics.get('tp')}, "
-                f"fp={metrics.get('fp')}"
-            )
-            print(
-                "- "
-                f"fn={metrics.get('fn')}, "
-                f"precision={metrics.get('precision')}"
-            )
-            print(
-                "- "
-                f"recall={metrics.get('recall')}, "
-                f"F1={metrics.get('F1')}"
-            )
-            print(f"- evaluated frames={metrics.get('evaluated_frames')}")
-            frame_summary = section_data.get("frame_summary")
-            if frame_summary:
-                print(f"- {frame_summary}")
+            if isinstance(metrics, dict) and metrics:
+                print(f"- detection: {detection_method}")
+                print(
+                    "- "
+                    f"tp={metrics.get('tp')}, "
+                    f"fp={metrics.get('fp')}"
+                )
+                print(
+                    "- "
+                    f"fn={metrics.get('fn')}, "
+                    f"precision={metrics.get('precision')}"
+                )
+                print(
+                    "- "
+                    f"recall={metrics.get('recall')}, "
+                    f"F1={metrics.get('F1')}"
+                )
+                print(f"- evaluated frames={metrics.get('evaluated_frames')}")
+                frame_summary = section_data.get("frame_summary")
+                if frame_summary:
+                    print(f"- {frame_summary}")
+                printed_any = True
+
+            if isinstance(track_metrics, dict) and track_metrics.get("sources"):
+                reference = track_metrics.get("reference")
+                sources = track_metrics.get("sources") or []
+                track_counts = track_metrics.get("track_counts") or {}
+                threshold = track_metrics.get("match_min_distance_pixel")
+                pairs = track_metrics.get("pairs") or {}
+                header = f"- tracking: {len(sources)} track sets"
+                if reference:
+                    header += f", reference={reference}"
+                if threshold is not None:
+                    header += f", threshold={float(threshold):.0f}px"
+                print(header)
+                for label in sources:
+                    count = track_counts.get(label)
+                    if count is not None:
+                        print(f"  - {label}: {count} tracks")
+                if pairs and len(sources) >= 2:
+                    from ..assessment._evaluate_tracks import _print_metric_matrix
+
+                    print()
+                    _print_metric_matrix(
+                        pairs, sources, "MOTA",
+                        "MOTA (%)  [row = ground-truth role, col = prediction role]",
+                    )
+                    print()
+                    _print_metric_matrix(pairs, sources, "IDF1", "IDF1 (%)  [symmetric]")
+                rows = track_metrics.get("rows") or []
+                if rows:
+                    print()
+                    print(f"Accuracy vs truth ({reference}):")
+                    for row in rows:
+                        print(
+                            f"  - {row.get('hyp')}: "
+                            f"MOTA={row.get('MOTA')}, IDF1={row.get('IDF1')}, "
+                            f"IDSW={row.get('num_switches')}, "
+                            f"fp={row.get('fp')}, fn={row.get('fn')}, "
+                            f"frags={row.get('frags')}"
+                        )
+                printed_any = True
+
+            if not printed_any:
+                print("- detection: none")
+                print("- tracking: none")
             continue
 
         if section == "last_performed_operations":

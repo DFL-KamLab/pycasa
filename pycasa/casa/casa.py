@@ -209,7 +209,7 @@ class Casa:
         """Access assessment/evaluation methods.
 
         Purpose:
-            Evaluate active predicted detections against groundtruth.
+            Evaluate predictions against groundtruth (detections and tracks).
 
         Inputs:
             None. This property returns a namespace object.
@@ -217,7 +217,8 @@ class Casa:
         Returns:
             _SessionAssessmentNamespace:
                 Namespace exposing:
-                - ``classification(...)``
+                - ``evaluate_detections(...)``
+                - ``evaluate_tracks(...)``
         """
         return _SessionAssessmentNamespace(self)
 

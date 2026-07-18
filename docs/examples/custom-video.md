@@ -33,7 +33,7 @@ A folder of one plain-text file per frame. Each file contains one detection row 
 <label> <norm_cx> <norm_cy> <norm_w> <norm_h>
 ```
 
-The frame index for each file is taken from the **last integer group** in its file name, so `frame-170.txt`, `82_frame_170.txt`, etc. all work (no fixed naming or zero-padding required). Loaded under `casa["detections"]["groundtruth"]` and used by `assessment.classification()`.
+The frame index for each file is taken from the **last integer group** in its file name, so `frame-170.txt`, `82_frame_170.txt`, etc. all work (no fixed naming or zero-padding required). Loaded under `casa["detections"]["groundtruth"]` and used by `assessment.evaluate_detections()`.
 
 ### Groundtruth tracks — `groundtruth_tracks_path`
 
@@ -97,7 +97,7 @@ self.info()
 | Parameter | Type | Default | When to use |
 |-----------|------|---------|-------------|
 | `video_path` | `str` | *(required)* | Path to the input video file. |
-| `groundtruth_detections_path` | `str \| None` | `None` | Folder of per-frame `.txt` detection files (`label cx cy w h`). Enables `assessment.classification()`. |
+| `groundtruth_detections_path` | `str \| None` | `None` | Folder of per-frame `.txt` detection files (`label cx cy w h`). Enables `assessment.evaluate_detections()`. |
 | `groundtruth_tracks_path` | `str \| None` | `None` | Folder of per-frame `.txt` track files (`track_id label cx cy w h`). Imported truth tracks; access via `self.get_groundtruth_tracks()`. |
 | `initial_frame` / `final_frame` | `int \| None` | `0` / `None` | Clip to a sub-range of the video. Frames outside the range are not loaded. |
 | `sampling_rate` | `float \| None` | `None` | Override the FPS stored in the video container. Used by motility metric computation. |

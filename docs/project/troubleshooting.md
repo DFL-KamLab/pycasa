@@ -63,10 +63,19 @@ Symptom:
 
 - assessment is empty or unavailable.
 
-Fix:
+Fix (detection assessment):
 
-- ensure both predicted detections and groundtruth are present before calling:
+- ensure both predicted detections and groundtruth **detections** are present before calling:
 
 ```python
-self.assessment.classification()
+self.assessment.evaluate_detections()
+```
+
+Fix (track assessment):
+
+- `evaluate_tracks()` needs **at least two track sets**. Load imported groundtruth tracks with `load_video(..., groundtruth_tracks_path=...)` and run at least one tracker (e.g. `self.tracking.sort()`); if fewer than two sets are present it is skipped with a warning.
+- it uses the optional `motmetrics` dependency, installed on demand the first time you call it.
+
+```python
+self.assessment.evaluate_tracks()
 ```

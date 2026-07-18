@@ -25,6 +25,10 @@ detection = [
 tracking = [
   "scipy>=1.13,<2",
 ]
+assessment = [
+  "scipy>=1.13,<2",
+  "motmetrics>=1.4,<2",
+]
 yolo = [
   "opencv-contrib-python>=4.10,<5",
   "matplotlib>=3.8,<4",
