@@ -35,7 +35,7 @@ def _resolve_motility_sources(
 
 
 def motility_density_scatter(casa: dict[str, Any]) -> dict[str, Any]:
-    """Render KDE density scatter plots for active standard motility metrics.
+    """Render KDE density scatter plots for active kinematic metrics.
 
     Parameters:
         casa (dict[str, Any]):
@@ -48,33 +48,33 @@ def motility_density_scatter(casa: dict[str, Any]) -> dict[str, Any]:
 
     Raises:
         RuntimeError:
-            If active standard motility results are missing or contain no
+            If active kinematic results are missing or contain no
             numeric values for plotting.
         ImportError:
             If ``matplotlib`` or ``scipy`` is unavailable.
 
     Notes:
         - Uses active source data resolved from
-          ``casa["motility"]["standard_motility_parameters"][source]``.
+          ``casa["motility"]["kinematic_parameters"][source]``.
         - KDE uses ``scipy.stats.gaussian_kde`` when feasible; singular/low-N
           fallbacks use uniform point density.
 
     Examples:
-        >>> session = session.motility.standard_motility_parameters()
+        >>> session = session.motility.kinematic_parameters()
         >>> session = session.visualization.motility_density_scatter()
     """
     casa = _ensure_casa(casa)
-    motility_root = casa.get("motility", {}).get("standard_motility_parameters", {})
+    motility_root = casa.get("motility", {}).get("kinematic_parameters", {})
     if not isinstance(motility_root, dict) or not motility_root:
         raise RuntimeError(
-            "No motility parameters found under 'standard_motility_parameters'. "
-            "Run `self.motility.standard_motility_parameters()` first."
+            "No motility parameters found under 'kinematic_parameters'. "
+            "Run `self.motility.kinematic_parameters()` first."
         )
     source_map = _resolve_motility_sources(motility_root)
     if not source_map:
         raise RuntimeError(
             "No motility parameters were found for the active source. "
-            "Run `self.motility.standard_motility_parameters()` after tracking."
+            "Run `self.motility.kinematic_parameters()` after tracking."
         )
 
     plt = _import_matplotlib_for_visualization("motility-density-scatter")

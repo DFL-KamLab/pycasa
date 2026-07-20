@@ -1,7 +1,8 @@
 """Motility namespace for quantitative trajectory analysis.
 
 Purpose:
-    Compute standard motility parameters from tracked trajectories.
+    Compute per-track kinematic parameters and population-level CASA
+    parameters from tracked trajectories.
 
 Inputs:
     A ``Casa`` session with tracking output and optional calibration.
@@ -11,9 +12,12 @@ Outputs:
     summary metadata.
 
 Methods:
-    - ``standard_motility_parameters(...)``
+    - ``kinematic_parameters(...)`` — per-track velocities (VCL, VSL, VAP, ...).
+    - ``casa_parameters(...)`` — population WHO motility grades (%rapid, %slow,
+      %non-progressive, %immotile) plus optional concentration/volume/count.
 """
 
-from ._standard_motility_parameters import standard_motility_parameters
+from ._casa_parameters import casa_parameters
+from ._kinematic_parameters import kinematic_parameters
 
-__all__ = ["standard_motility_parameters"]
+__all__ = ["casa_parameters", "kinematic_parameters"]

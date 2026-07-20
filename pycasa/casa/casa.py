@@ -14,7 +14,9 @@ from ..utils import get_tracks
 from ..utils import get_video
 from ..utils import _GROUNDTRUTH_TRACKS_KEY
 from ..utils import _print_casa_info
+from ..utils import set_chamber_depth_um
 from ..utils import set_um_per_px
+from ..utils import set_volume_ml
 from .assessment import _SessionAssessmentNamespace
 from .detection import _SessionDetectionNamespace
 from .io import _SessionIONamespace
@@ -61,6 +63,32 @@ class Casa:
                 The same fluent session instance.
         """
         return self._sync_from(set_um_per_px(self._as_dict(), um_per_px))
+
+    def set_volume_ml(self, volume_ml: float) -> "Casa":
+        """Set the ejaculate volume (mL) used by ``motility.casa_parameters``.
+
+        Parameters:
+            volume_ml (float):
+                Positive finite ejaculate volume in millilitres.
+
+        Returns:
+            Casa:
+                The same fluent session instance.
+        """
+        return self._sync_from(set_volume_ml(self._as_dict(), volume_ml))
+
+    def set_chamber_depth_um(self, chamber_depth_um: float) -> "Casa":
+        """Set the counting-chamber depth (um) used for concentration.
+
+        Parameters:
+            chamber_depth_um (float):
+                Positive finite chamber depth in micrometres (e.g. ``20``).
+
+        Returns:
+            Casa:
+                The same fluent session instance.
+        """
+        return self._sync_from(set_chamber_depth_um(self._as_dict(), chamber_depth_um))
 
     def get_casa(self) -> dict[str, Any]:
         """Return the validated CASA dictionary."""
@@ -192,7 +220,8 @@ class Casa:
         """Access motility-parameter computation methods.
 
         Purpose:
-            Compute standard motility metrics from tracked trajectories.
+            Compute per-track kinematic parameters and population CASA
+            parameters from tracked trajectories.
 
         Inputs:
             None. This property returns a namespace object.
@@ -200,7 +229,8 @@ class Casa:
         Returns:
             _SessionMotilityNamespace:
                 Namespace exposing:
-                - ``standard_motility_parameters(...)``
+                - ``kinematic_parameters(...)``
+                - ``casa_parameters(...)``
         """
         return _SessionMotilityNamespace(self)
 

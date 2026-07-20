@@ -157,9 +157,10 @@ self.detection.yolo()
 #    (deepsort or jpdaf are drop-in alternatives — see the Tracking API page)
 self.tracking.sort()
 
-# 5. Motility — compute standard CASA metrics per track window
+# 5. Motility — per-track kinematics, then population WHO grades
 #    um_per_px is auto-set to 0.24 by load_default_data(); call self.set_um_per_px(...) only for custom videos
-self.motility.standard_motility_parameters()
+self.motility.kinematic_parameters()   # VCL, VSL, VAP, LIN, ALH, WOB, STR, MAD
+self.motility.casa_parameters()        # %rapid/%slow/%non-progressive/%immotile (+ conc/volume if set)
 
 # 6. Assess — compare predictions against groundtruth
 self.assessment.evaluate_detections()   # detections vs GT detections (precision/recall/F1)

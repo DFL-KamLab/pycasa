@@ -284,7 +284,7 @@ def _print_motility_parameter_summary(
     )
 
 
-def standard_motility_parameters(
+def kinematic_parameters(
     casa: dict[str, Any],
     frame_rate: float | None = None,
     window_size: int = 10,
@@ -294,7 +294,7 @@ def standard_motility_parameters(
     show_progress: bool = True,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Compute legacy-standard motility parameters from SORT trajectories.
+    """Compute per-track kinematic (motility) parameters from SORT trajectories.
 
     Parameters:
         casa (dict[str, Any]):
@@ -326,7 +326,7 @@ def standard_motility_parameters(
     Returns:
         dict[str, Any]:
             Updated ``casa`` dictionary with motility output written to
-            ``casa["motility"]["standard_motility_parameters"][source]``.
+            ``casa["motility"]["kinematic_parameters"][source]``.
 
     Raises:
         ValueError:
@@ -352,10 +352,10 @@ def standard_motility_parameters(
         >>> session = pc.io.load_default_data()
         >>> session = session.tracking.sort(skip_gt=False)
         >>> session = session.set_um_per_px(0.24)
-        >>> session = session.motility.standard_motility_parameters()
+        >>> session = session.motility.kinematic_parameters()
     """
     casa = _ensure_casa(casa)
-    result_key = "standard_motility_parameters"
+    result_key = "kinematic_parameters"
     tracks_root_for_backend = casa.get("tracks", {})
     tracking_backend = _resolve_active_tracking_backend(tracks_root_for_backend) or "sort"
 
@@ -439,7 +439,7 @@ def standard_motility_parameters(
     ordered_sources = sorted(tracks_by_source.keys(), key=lambda value: (value != "groundtruth", value))
     if verbose:
         print(
-            "Running standard motility parameters on tracks "
+            "Running kinematic parameters on tracks "
             f"(sources={ordered_sources})..."
         )
 

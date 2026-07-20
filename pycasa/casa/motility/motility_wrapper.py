@@ -3,7 +3,7 @@ class _SessionMotilityNamespace:
         """Initialize the motility namespace for a ``Casa`` session."""
         self._session = session
 
-    def standard_motility_parameters(
+    def kinematic_parameters(
         self,
         frame_rate: float | None = None,
         window_size: int = 10,
@@ -14,7 +14,11 @@ class _SessionMotilityNamespace:
         show_progress: bool = True,
         verbose: bool = True,
     ) -> "Casa":
-        """Compute legacy-standard motility parameters from tracked trajectories.
+        """Compute per-track kinematic parameters from tracked trajectories.
+
+        Kinematic parameters are the per-track, per-window velocities and shape
+        descriptors: ``VCL``, ``VSL``, ``VAP``, ``LIN``, ``ALH``, ``WOB``,
+        ``STR``, ``MAD``. Run this before :meth:`casa_parameters`.
 
         Parameters:
             frame_rate (float | None, optional):
@@ -48,16 +52,16 @@ class _SessionMotilityNamespace:
 
         Notes:
             Writes per-source output to
-            ``casa["motility"]["standard_motility_parameters"][source]`` and
+            ``casa["motility"]["kinematic_parameters"][source]`` and
             stores run metadata in ``casa["meta"]["last_motility"]``.
 
         Examples:
-            >>> session = session.motility.standard_motility_parameters()
+            >>> session = session.motility.kinematic_parameters()
         """
-        from ...motility import standard_motility_parameters
+        from ...motility import kinematic_parameters
 
         return self._session._sync_from(
-            standard_motility_parameters(
+            kinematic_parameters(
                 self._session._as_dict(),
                 frame_rate=frame_rate,
                 window_size=window_size,
@@ -65,6 +69,82 @@ class _SessionMotilityNamespace:
                 smoothing_window=smoothing_window,
                 conversion_required=conversion_required,
                 show_progress=show_progress,
+                verbose=verbose,
+            )
+        )
+
+    def casa_parameters(
+        self,
+        rapid_threshold: float = 25.0,
+        immotile_threshold: float = 5.0,
+        progressive_str_threshold: float = 0.8,
+        velocity_metric: str = "VAP",
+        volume_ml: float | None = None,
+        chamber_depth_um: float | None = None,
+        *,
+        verbose: bool = True,
+    ) -> "Casa":
+        """Compute population-level CASA parameters from kinematic parameters.
+
+        Classifies every track into the four WHO motility grades and reports
+        their population percentages (``%rapid``, ``%slow``,
+        ``%non_progressive``, ``%immotile``). When the required physical inputs
+        are available, it also reports sperm **concentration** (needs
+        ``chamber_depth_um`` + ``um_per_px``), **volume** (needs ``volume_ml``),
+        and **total sperm count** (needs both). Missing inputs simply omit the
+        corresponding output — the grades always compute.
+
+        Run :meth:`kinematic_parameters` first.
+
+        Parameters:
+            rapid_threshold (float, optional):
+                Velocity (um/s) at/above which a progressive track is *rapid*
+                (WHO grade a). Default ``25``.
+            immotile_threshold (float, optional):
+                Velocity (um/s) below which a track is *immotile* (WHO grade d).
+                Default ``5``.
+            progressive_str_threshold (float, optional):
+                STR (VSL/VAP, ratio in ``[0, 1]``) at/above which a motile track
+                is *progressive*; below it the track is *non-progressive*
+                (WHO grade c). Default ``0.8``.
+            velocity_metric (str, optional):
+                Which kinematic velocity drives the grade thresholds
+                (``"VAP"``, ``"VCL"`` or ``"VSL"``). Default ``"VAP"``.
+            volume_ml (float | None, optional):
+                Ejaculate volume (mL). Overrides ``casa["meta"]["volume_ml"]``.
+                Enables volume + total-count reporting when set.
+            chamber_depth_um (float | None, optional):
+                Counting-chamber depth (um). Resolved as argument, then
+                ``casa["meta"]["chamber_depth_um"]``, then the ``20`` um
+                default. With ``um_per_px`` present this enables concentration
+                (and total-count) reporting.
+            verbose (bool, optional):
+                If ``True``, print a concise per-source summary.
+
+        Returns:
+            Casa:
+                The same fluent ``Casa`` session instance.
+
+        Notes:
+            Writes per-source output to
+            ``casa["motility"]["casa_parameters"][source]`` and stores run
+            metadata in ``casa["meta"]["last_casa_parameters"]``.
+
+        Examples:
+            >>> session = session.motility.kinematic_parameters()
+            >>> session = session.motility.casa_parameters(chamber_depth_um=20, volume_ml=3.5)
+        """
+        from ...motility import casa_parameters
+
+        return self._session._sync_from(
+            casa_parameters(
+                self._session._as_dict(),
+                rapid_threshold=rapid_threshold,
+                immotile_threshold=immotile_threshold,
+                progressive_str_threshold=progressive_str_threshold,
+                velocity_metric=velocity_metric,
+                volume_ml=volume_ml,
+                chamber_depth_um=chamber_depth_um,
                 verbose=verbose,
             )
         )

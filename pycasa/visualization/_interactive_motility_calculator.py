@@ -3,10 +3,10 @@ from typing import Any
 import numpy as np
 
 from .._core._casa import _ensure_casa
-from ..motility._standard_motility_parameters import _coerce_track_points
-from ..motility._standard_motility_parameters import _compute_segment_motility
-from ..motility._standard_motility_parameters import _ensure_um_per_px
-from ..motility._standard_motility_parameters import _resolve_video_size
+from ..motility._kinematic_parameters import _coerce_track_points
+from ..motility._kinematic_parameters import _compute_segment_motility
+from ..motility._kinematic_parameters import _ensure_um_per_px
+from ..motility._kinematic_parameters import _resolve_video_size
 from ..utils import _ensure_import
 from ..utils import _import_matplotlib_for_visualization
 from ..utils import _resolve_active_sort_source_name
@@ -73,7 +73,7 @@ def interactive_motility_calculator(
         - Window and step sliders control highlighted segment navigation.
         - Right panel shows 8 metric history tiles (VCL, VSL, VAP, LIN, ALH,
           WOB, STR, MAD) with current-point highlight and global mean/std
-          from ``motility.standard_motility_parameters`` when available.
+          from ``motility.kinematic_parameters`` when available.
 
     Examples:
         >>> session = session.tracking.sort()
@@ -368,8 +368,8 @@ def interactive_motility_calculator(
         state["list_start"] = int(max(0, min(max_list_start, state["list_start"])))
 
     def _compute_total_motility_stats_from_session() -> dict[str, dict[str, float]] | None:
-        """Compute global mean/std from ``motility.standard_motility_parameters``."""
-        motility_root = casa.get("motility", {}).get("standard_motility_parameters", {})
+        """Compute global mean/std from ``motility.kinematic_parameters``."""
+        motility_root = casa.get("motility", {}).get("kinematic_parameters", {})
         if not isinstance(motility_root, dict) or not motility_root:
             return None
 

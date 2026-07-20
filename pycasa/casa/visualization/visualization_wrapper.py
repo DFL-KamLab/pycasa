@@ -186,7 +186,7 @@ class _SessionVisualizationNamespace:
         show_legend: bool = True,
         show_text: bool = True,
     ) -> "Casa":
-        """Render a radar-chart summary for active standard motility parameters.
+        """Render a radar-chart summary for active kinematic parameters.
 
         Parameters:
             axis (Any, optional):
@@ -204,7 +204,7 @@ class _SessionVisualizationNamespace:
 
         Raises:
             RuntimeError:
-                If active standard motility results are missing.
+                If active kinematic results are missing.
             ImportError:
                 If ``matplotlib`` is unavailable.
         """
@@ -220,7 +220,7 @@ class _SessionVisualizationNamespace:
         )
 
     def motility_density_scatter(self) -> "Casa":
-        """Render KDE density scatter plots for active standard motility metrics.
+        """Render KDE density scatter plots for active kinematic metrics.
 
         Returns:
             Casa:
@@ -229,7 +229,7 @@ class _SessionVisualizationNamespace:
 
         Raises:
             RuntimeError:
-                If active standard motility results are missing or contain no
+                If active kinematic results are missing or contain no
                 numeric values for plotting.
             ImportError:
                 If ``matplotlib`` or ``scipy`` is unavailable.

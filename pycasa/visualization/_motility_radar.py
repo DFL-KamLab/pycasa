@@ -75,7 +75,7 @@ def motility_radar(
     show_legend: bool = True,
     show_text: bool = True,
 ) -> dict[str, Any]:
-    """Render a radar-chart summary for active standard motility parameters.
+    """Render a radar-chart summary for active kinematic parameters.
 
     Parameters:
         casa (dict[str, Any]):
@@ -95,18 +95,18 @@ def motility_radar(
 
     Raises:
         RuntimeError:
-            If active standard motility results are missing.
+            If active kinematic results are missing.
         ImportError:
             If ``matplotlib`` is unavailable.
 
     Notes:
         - Uses active source data resolved from
-          ``casa["motility"]["standard_motility_parameters"][source]``.
+          ``casa["motility"]["kinematic_parameters"][source]``.
         - Metric values are normalized against fixed legacy reference maxima
           for radar scaling.
 
     Examples:
-        >>> session = session.motility.standard_motility_parameters()
+        >>> session = session.motility.kinematic_parameters()
         >>> session = session.visualization.motility_radar()
     """
     casa = _ensure_casa(casa)
@@ -114,17 +114,17 @@ def motility_radar(
     mpl_widgets = _ensure_import("matplotlib.widgets", pip_name="matplotlib")
     Button = mpl_widgets.Button
 
-    motility_root = casa.get("motility", {}).get("standard_motility_parameters", {})
+    motility_root = casa.get("motility", {}).get("kinematic_parameters", {})
     if not isinstance(motility_root, dict) or not motility_root:
         raise RuntimeError(
-            "No motility parameters found under 'standard_motility_parameters'. "
-            "Run `self.motility.standard_motility_parameters()` first."
+            "No motility parameters found under 'kinematic_parameters'. "
+            "Run `self.motility.kinematic_parameters()` first."
         )
     source_map = _resolve_motility_sources(motility_root)
     if not source_map:
         raise RuntimeError(
             "No motility parameters were found for the active source. "
-            "Run `self.motility.standard_motility_parameters()` after tracking."
+            "Run `self.motility.kinematic_parameters()` after tracking."
         )
 
     source_order = sorted(source_map.keys(), key=lambda value: (value != "groundtruth", value))

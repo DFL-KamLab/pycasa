@@ -25,7 +25,9 @@ from ._normalization_helpers import (
     _store_normalization_results,
 )
 from ._progress_helpers import _progress_bar
+from ._setter_helpers import set_chamber_depth_um
 from ._setter_helpers import set_um_per_px
+from ._setter_helpers import set_volume_ml
 from ._tracking_helpers import _GROUNDTRUTH_TRACKS_KEY
 from ._tracking_helpers import _KNOWN_TRACKING_BACKENDS
 from ._tracking_helpers import _clear_backend_tracks
@@ -78,6 +80,8 @@ __all__ = [
     "get_assessment",
     "get_assesment",
     "set_um_per_px",
+    "set_volume_ml",
+    "set_chamber_depth_um",
     "_ensure_video_dimensions",
     "_convert_video_to_grayscale",
     "_ensure_original_video",

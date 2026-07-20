@@ -57,7 +57,8 @@ self.tracking.sort(max_age=25, min_hits=3, iou_threshold=0.1)
 
 # --- Motility ---
 # um_per_px is auto-set to 0.24 by load_default_data(); call self.set_um_per_px(...) for custom videos
-self.motility.standard_motility_parameters()
+self.motility.kinematic_parameters()   # per-track velocities (VCL, VSL, VAP, ...)
+self.motility.casa_parameters()        # population WHO grades; add volume_ml=/chamber_depth_um= for conc/count
 
 # --- Assess ---
 self.assessment.evaluate_detections(match_min_distance_pixel=20)   # detections vs GT detections
@@ -81,7 +82,7 @@ After running the pipeline, pull data out of the session with the getter methods
 meta       = self.get_meta()        # sampling rate, frame range, last_* fields
 detections = self.get_detections()  # active predicted detection dict
 tracks     = self.get_tracks(backend="sort")  # SORT trajectories by source
-motility   = self.get_motility()    # standard motility parameter dicts
+motility   = self.get_motility()    # kinematic parameter dicts
 assessment = self.get_assessment()  # ["detection"]: tp/fp/fn/precision/recall/F1; ["tracking"]: MOTA/IDF1 pairs
 ```
 

@@ -31,7 +31,7 @@ self.tracking.sort()
 self.set_um_per_px(0.24)   # µm per pixel — adjust to match your microscope setup
 
 # 4. Compute standard CASA motility metrics
-self.motility.standard_motility_parameters(
+self.motility.kinematic_parameters(
     window_size=10,    # trajectory points per sliding window
     overlap=0.2,       # fraction of window that overlaps with the previous window
 )
@@ -64,7 +64,7 @@ self.info()
 
 ## Motility metrics reference
 
-`standard_motility_parameters` computes these eight metrics per sliding window over each track:
+`kinematic_parameters` computes these eight metrics per sliding window over each track:
 
 | Metric | Full Name | Unit | What it measures |
 |--------|-----------|------|-----------------|
@@ -78,7 +78,7 @@ self.info()
 | **MAD** | Mean Angular Displacement | degrees | Average turning angle per frame step. |
 
 !!! note "Unit conversion"
-    Velocity metrics (VCL, VSL, VAP) and ALH are reported in **µm/s** and **µm** when `um_per_px` is set and `conversion_required=True` (the default). Without calibration they remain in pixel units. Set calibration with `self.set_um_per_px(value)` before calling `standard_motility_parameters()`.
+    Velocity metrics (VCL, VSL, VAP) and ALH are reported in **µm/s** and **µm** when `um_per_px` is set and `conversion_required=True` (the default). Without calibration they remain in pixel units. Set calibration with `self.set_um_per_px(value)` before calling `kinematic_parameters()`.
 
 ---
 
@@ -89,7 +89,7 @@ motility = self.get_motility()
 
 # Output is keyed by detection source → track_id → metric → list of per-window values
 source = "moving_cells"   # or "yolov5", "groundtruth", etc.
-track_motility = motility["standard_motility_parameters"][source]
+track_motility = motility["kinematic_parameters"][source]
 
 # Inspect one track
 for track_id, params in list(track_motility.items())[:2]:
@@ -104,7 +104,7 @@ The output structure:
 
 ```python
 {
-    "standard_motility_parameters": {
+    "kinematic_parameters": {
         "moving_cells": {
             42: {
                 "VCL": [38.2, 40.1, 37.8],   # one value per window
@@ -122,6 +122,50 @@ The output structure:
     }
 }
 ```
+
+---
+
+## CASA parameters (WHO motility grades)
+
+`casa_parameters()` aggregates the per-track kinematics above into population-level clinical parameters. It classifies every track into one of the four WHO grades and reports their percentages; with optional physical inputs it also reports concentration, volume, and total sperm count.
+
+```python
+# Run kinematics first, then aggregate to CASA parameters.
+self.motility.kinematic_parameters()
+
+# Grades only (always available):
+self.motility.casa_parameters()
+
+# Grades + concentration + total count (provide the physical inputs):
+self.motility.casa_parameters(volume_ml=3.5, chamber_depth_um=20)
+# ...equivalently set them on the session once:
+# self.set_volume_ml(3.5); self.set_chamber_depth_um(20)
+```
+
+Reading the output:
+
+```python
+casa = self.get_motility()["casa_parameters"][source]   # source e.g. "yolov5"
+print(casa["grades"])                 # {'rapid':.., 'slow':.., 'non_progressive':.., 'immotile':..}
+print(casa["percent_motile"])         # 100 - %immotile
+print(casa["concentration_M_per_ml"]) # 10^6/mL, or None if inputs absent
+print(casa["total_sperm_count_M"])    # 10^6, or None
+```
+
+| Parameter | Needs | Meaning |
+|-----------|-------|---------|
+| `grades.rapid` | — | Progressive & velocity ≥ `rapid_threshold` (default 25 µm/s), WHO grade a. |
+| `grades.slow` | — | Progressive & velocity < `rapid_threshold`, WHO grade b. |
+| `grades.non_progressive` | — | Motile but `STR` < `progressive_str_threshold` (0.8), WHO grade c. |
+| `grades.immotile` | — | Velocity < `immotile_threshold` (5 µm/s), WHO grade d. |
+| `concentration_M_per_ml` | `um_per_px` (`chamber_depth_um` defaults to 20) | Mean cells/frame ÷ (field area × depth). |
+| `volume_ml` | `volume_ml` | Ejaculate volume (manual lab measurement). |
+| `total_sperm_count_M` | volume + concentration | `volume_ml × concentration`. |
+
+!!! note "Thresholds are adjustable"
+    Defaults follow WHO conventions but every threshold is an argument:
+    `casa_parameters(rapid_threshold=25, immotile_threshold=5, progressive_str_threshold=0.8, velocity_metric="VAP")`.
+    Velocity thresholds are in µm/s, so set `um_per_px` first for meaningful grades.
 
 ---
 

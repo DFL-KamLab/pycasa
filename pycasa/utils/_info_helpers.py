@@ -153,7 +153,7 @@ def _build_motility_summary(
     if primary_source is not None:
         primary_source = str(primary_source)
 
-    method_root = motility.get("standard_motility_parameters")
+    method_root = motility.get("kinematic_parameters")
     if not isinstance(method_root, dict):
         return {"available": False, "tracking_backend": tracking_backend, "sources": []}
 
@@ -221,6 +221,35 @@ def _build_motility_summary(
         "detection_method": primary_source,
         "sources": rows,
     }
+
+
+def _build_casa_parameters_summary(motility: dict[str, Any]) -> dict[str, Any]:
+    """Extract population CASA-parameter rows (WHO grades + optional physicals)."""
+    if not isinstance(motility, dict):
+        motility = {}
+    root = motility.get("casa_parameters")
+    if not isinstance(root, dict) or not root:
+        return {"available": False, "sources": []}
+
+    rows: list[dict[str, Any]] = []
+    for source_name in sorted(root.keys(), key=lambda v: (v != "groundtruth", v)):
+        data = root[source_name]
+        if not isinstance(data, dict) or data.get("skipped"):
+            continue
+        grades = data.get("grades") or {}
+        rows.append({
+            "source": source_name,
+            "track_count": data.get("track_count"),
+            "rapid": grades.get("rapid"),
+            "slow": grades.get("slow"),
+            "non_progressive": grades.get("non_progressive"),
+            "immotile": grades.get("immotile"),
+            "percent_motile": data.get("percent_motile"),
+            "concentration_M_per_ml": data.get("concentration_M_per_ml"),
+            "volume_ml": data.get("volume_ml"),
+            "total_sperm_count_M": data.get("total_sperm_count_M"),
+        })
+    return {"available": bool(rows), "sources": rows}
 
 
 def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
@@ -317,6 +346,7 @@ def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
 
     tracking_info = _build_tracking_summary(tracks, meta_last_tracking)
     motility_info = _build_motility_summary(motility, meta_last_motility, meta_last_tracking)
+    casa_parameters_info = _build_casa_parameters_summary(motility)
 
     detection_data = assessment.get("detection")
     if not isinstance(detection_data, dict):
@@ -396,6 +426,7 @@ def _build_casa_info(casa: dict[str, Any]) -> dict[str, Any]:
         "methods": methods,
         "tracking": tracking_info,
         "motility": motility_info,
+        "casa_parameters": casa_parameters_info,
         "assessment": assessment_info,
         "last_performed_operations": last_performed_operations,
     }
@@ -411,6 +442,7 @@ def _print_casa_info(info: dict[str, Any]) -> None:
         "methods",
         "tracking",
         "motility",
+        "casa_parameters",
         "assessment",
         "last_performed_operations",
     )
@@ -530,7 +562,7 @@ def _print_casa_info(info: dict[str, Any]) -> None:
             continue
 
         if section == "motility":
-            print("- Standard Motility Parameters")
+            print("- Kinematic Parameters")
             if not bool(section_data.get("available")):
                 print("- none")
                 continue
@@ -576,6 +608,31 @@ def _print_casa_info(info: dict[str, Any]) -> None:
                     f"STR={_truncate_two_decimals(row.get('mean_STR'))}, "
                     f"MAD={_truncate_two_decimals(row.get('mean_MAD'))}"
                 )
+            continue
+
+        if section == "casa_parameters":
+            print("- CASA Parameters (WHO motility grades)")
+            if not bool(section_data.get("available")):
+                print("- none")
+                continue
+            for row in section_data.get("sources") or []:
+                if not isinstance(row, dict):
+                    continue
+                print("")
+                print(f"- {row.get('source')} (tracks={row.get('track_count')})")
+                print(
+                    "- "
+                    f"%rapid={row.get('rapid')}, %slow={row.get('slow')}, "
+                    f"%non-progressive={row.get('non_progressive')}, "
+                    f"%immotile={row.get('immotile')} (%motile={row.get('percent_motile')})"
+                )
+                conc = row.get("concentration_M_per_ml")
+                if conc is not None:
+                    print(f"- concentration={conc} x10^6/mL")
+                if row.get("volume_ml") is not None:
+                    print(f"- volume={row.get('volume_ml')} mL")
+                if row.get("total_sperm_count_M") is not None:
+                    print(f"- total sperm count={row.get('total_sperm_count_M')} x10^6")
             continue
 
         if section == "assessment":
