@@ -302,7 +302,8 @@ def kinematic_parameters(
             ``casa["tracks"]["sort"][source]``.
         frame_rate (float | None, optional):
             FPS override. If ``None``, uses ``casa["meta"]["sampling_rate"]``
-            when available, otherwise ``30``.
+            (read from the video). If that is also unavailable, a warning is
+            issued and ``30`` is used as a fallback.
         window_size (int, optional):
             Number of points per sliding window.
         overlap (float, optional):
@@ -368,8 +369,17 @@ def kinematic_parameters(
     elif um_per_px_raw is not None:
         scale = _ensure_um_per_px(um_per_px_raw)
 
-    fps = float(frame_rate or meta.get("sampling_rate") or 30.0)
-    if fps <= 0:
+    sampling_rate = meta.get("sampling_rate")
+    if frame_rate is not None and float(frame_rate) > 0:
+        fps = float(frame_rate)
+    elif isinstance(sampling_rate, (int, float)) and float(sampling_rate) > 0:
+        fps = float(sampling_rate)
+    else:
+        _warn_yellow(
+            "Frame rate could not be read from the video "
+            "(casa['meta']['sampling_rate']); using 30 fps. Velocity-based "
+            "motility metrics may be inaccurate."
+        )
         fps = 30.0
 
     effective_window_size = max(2, int(window_size))

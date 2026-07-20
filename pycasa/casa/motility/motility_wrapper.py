@@ -23,7 +23,8 @@ class _SessionMotilityNamespace:
         Parameters:
             frame_rate (float | None, optional):
                 FPS override. If ``None``, uses ``casa["meta"]["sampling_rate"]``
-                when available, otherwise ``30``.
+                (read from the video). If that is also unavailable, a warning
+                is issued and ``30`` is used as a fallback.
             window_size (int, optional):
                 Number of points per sliding window.
             overlap (float, optional):
