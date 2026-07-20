@@ -27,6 +27,7 @@ def timelapse(
     detection_color: str | None = None,
     groundtruth_color: str | None = None,
     track_colors: dict[str, Any] | None = None,
+    max_track_gap: int = 1,
 ) -> dict[str, Any]:
     """Open an interactive time-lapse viewer for selected video representations.
 
@@ -63,6 +64,12 @@ def timelapse(
             ``"groundtruth"`` for the groundtruth source and ``"detection"``
             for the active predicted-detection source. Values are any valid
             matplotlib color.
+        max_track_gap (int, optional):
+            Maximum frame gap across which a track's trajectory line is drawn
+            as a single segment. Consecutive stored points whose frame indices
+            differ by more than this are not connected, so tracks that
+            disappear and reappear are not bridged by a straight line. Default
+            ``1`` (connect only consecutive frames).
 
     Returns:
         dict[str, Any]:
@@ -461,11 +468,16 @@ def timelapse(
 
                             xs = track_data["xs"][:end_idx]
                             ys = track_data["ys"][:end_idx]
+                            frames = track_data["frames"][:end_idx]
                             color = track_data["color"]
 
                             if len(xs) > 1:
-                                segments.append(np.column_stack((xs, ys)))
-                                segment_colors.append(color)
+                                points = np.column_stack((xs, ys))
+                                breaks = np.nonzero(np.diff(frames) > max_track_gap)[0] + 1
+                                for run in np.split(points, breaks):
+                                    if len(run) > 1:
+                                        segments.append(run)
+                                        segment_colors.append(color)
 
                             if show_track_ids:
                                 track_text_artists.append(

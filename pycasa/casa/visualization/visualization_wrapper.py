@@ -59,6 +59,7 @@ class _SessionVisualizationNamespace:
         detection_color: str | None = None,
         groundtruth_color: str | None = None,
         track_colors: dict[str, Any] | None = None,
+        max_track_gap: int = 1,
     ) -> "Casa":
         """Open an interactive time-lapse viewer for selected video representations.
 
@@ -91,6 +92,11 @@ class _SessionVisualizationNamespace:
                 literal source name (e.g. ``"groundtruth"``, ``"yolo"``) or a
                 role alias: ``"groundtruth"`` for the groundtruth source and
                 ``"detection"`` for the active predicted-detection source.
+            max_track_gap (int, optional):
+                Maximum frame gap across which a trajectory line is drawn as a
+                single segment. Points whose frame indices differ by more than
+                this are not connected, so tracks that disappear and reappear
+                are not bridged by a straight line. Default ``1``.
 
         Returns:
             Casa:
@@ -134,6 +140,7 @@ class _SessionVisualizationNamespace:
                 detection_color=detection_color,
                 groundtruth_color=groundtruth_color,
                 track_colors=track_colors,
+                max_track_gap=max_track_gap,
             )
         )
 

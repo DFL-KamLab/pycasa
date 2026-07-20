@@ -334,7 +334,7 @@ def deepsort(
             tracker.update(ds_dets)
 
             for t in tracker.tracks:
-                if not t.is_confirmed():
+                if not t.is_confirmed() or t.time_since_update > 0:
                     continue
                 ltrb = t.to_tlbr()
                 center_x = float((ltrb[0] + ltrb[2]) / 2.0)

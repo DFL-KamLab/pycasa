@@ -330,6 +330,7 @@ class _KalmanTrack:
         self.max_score: float = initial_score
         self.confirmed: bool = False
         self.age: int = 0
+        self.updated_this_frame: bool = False
 
     # ------------------------------------------------------------------
     # Predict step  (Paper Eqs. 5–8)
@@ -349,6 +350,7 @@ class _KalmanTrack:
         * Eq. 8 — adaptive Q: ``Q(k) = c₁·Q(k-1) + c₂·νₜ·νₜᵀ + c₃·Q₀``
           where ``νₜ = x̂(k|k-1) − x̂(k-1|k-1)``
         """
+        self.updated_this_frame = False
         self.x_prev = self.x.copy()
 
         x_pred = self.F @ self.x
@@ -1075,6 +1077,7 @@ def _run_jpdaf_on_source(
                     if betas_j and (1.0 - float(beta0[local_t])) > 1e-9:
                         pseudo = track.update(betas_j, residuals_j, float(beta0[local_t]))
                         track.score_step(pseudo, updated=True, PD=PD, lambda_c=lambda_c)
+                        track.updated_this_frame = True
                     else:
                         track.score_step(None, updated=False, PD=PD, lambda_c=lambda_c)
 
@@ -1100,7 +1103,7 @@ def _run_jpdaf_on_source(
 
         # ---- Store confirmed track positions ----
         for track in active_tracks:
-            if track.confirmed:
+            if track.confirmed and track.updated_this_frame:
                 key = f"t{track.track_id}"
                 track_history.setdefault(key, {})[local_idx] = [
                     float(track.x[0]), float(track.x[1])
