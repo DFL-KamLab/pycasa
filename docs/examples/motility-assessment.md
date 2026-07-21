@@ -147,6 +147,7 @@ Reading the output:
 ```python
 casa = self.get_motility()["casa_parameters"][source]   # source e.g. "yolov5"
 print(casa["grades"])                 # {'rapid':.., 'slow':.., 'non_progressive':.., 'immotile':..}
+print(casa["grades_std"])             # binomial standard error (percentage points) per grade
 print(casa["percent_motile"])         # 100 - %immotile
 print(casa["concentration_M_per_ml"]) # 10^6/mL, or None if inputs absent
 print(casa["total_sperm_count_M"])    # 10^6, or None

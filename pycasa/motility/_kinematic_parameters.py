@@ -234,6 +234,10 @@ def _build_motility_parameter_summary(
     for key in _MOTILITY_KEYS:
         values = metric_values[key]
         summary[f"mean_{key}"] = float(sum(values) / len(values)) if values else None
+        if len(values) > 1:
+            summary[f"std_{key}"] = float(np.std(values, ddof=1))
+        else:
+            summary[f"std_{key}"] = 0.0 if values else None
     return summary
 
 
@@ -246,13 +250,25 @@ def _format_summary_value(value: float | int | None) -> str:
     return f"{float(value):.2f}"
 
 
+def _format_mean_std(
+    summary: dict[str, float | int | None],
+    key: str,
+    unit: str = "",
+) -> str:
+    """Format one metric as ``mean+/-std`` with an optional unit suffix."""
+    mean = _format_summary_value(summary.get(f"mean_{key}"))
+    std = _format_summary_value(summary.get(f"std_{key}"))
+    tail = f" {unit}" if unit else ""
+    return f"{mean}+/-{std}{tail}"
+
+
 def _print_motility_parameter_summary(
     tracking_backend: str,
     source_name: str,
     summary: dict[str, float | int | None],
     converted_units: bool,
 ) -> None:
-    """Print a concise motility summary after successful computation."""
+    """Print a concise motility summary (mean+/-std) after successful computation."""
     speed_unit = "um/s" if converted_units else "px/s"
     displacement_unit = "um" if converted_units else "px"
     print(f"Motility parameter summary ({tracking_backend}:{source_name})")
@@ -264,23 +280,23 @@ def _print_motility_parameter_summary(
     )
     print(
         "- "
-        f"VCL={_format_summary_value(summary.get('mean_VCL'))} {speed_unit}, "
-        f"VSL={_format_summary_value(summary.get('mean_VSL'))} {speed_unit}"
+        f"VCL={_format_mean_std(summary, 'VCL', speed_unit)}, "
+        f"VSL={_format_mean_std(summary, 'VSL', speed_unit)}"
     )
     print(
         "- "
-        f"VAP={_format_summary_value(summary.get('mean_VAP'))} {speed_unit}, "
-        f"LIN={_format_summary_value(summary.get('mean_LIN'))}"
+        f"VAP={_format_mean_std(summary, 'VAP', speed_unit)}, "
+        f"LIN={_format_mean_std(summary, 'LIN')}"
     )
     print(
         "- "
-        f"ALH={_format_summary_value(summary.get('mean_ALH'))} {displacement_unit}, "
-        f"WOB={_format_summary_value(summary.get('mean_WOB'))}"
+        f"ALH={_format_mean_std(summary, 'ALH', displacement_unit)}, "
+        f"WOB={_format_mean_std(summary, 'WOB')}"
     )
     print(
         "- "
-        f"STR={_format_summary_value(summary.get('mean_STR'))}, "
-        f"MAD={_format_summary_value(summary.get('mean_MAD'))} deg"
+        f"STR={_format_mean_std(summary, 'STR')}, "
+        f"MAD={_format_mean_std(summary, 'MAD', 'deg')}"
     )
 
 

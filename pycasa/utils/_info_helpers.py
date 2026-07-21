@@ -206,7 +206,14 @@ def _build_motility_summary(
         }
         for metric_key in metric_keys:
             values = metric_values[metric_key]
-            row[f"mean_{metric_key}"] = float(sum(values) / len(values)) if values else None
+            count = len(values)
+            mean = float(sum(values) / count) if count else None
+            row[f"mean_{metric_key}"] = mean
+            if count > 1:
+                variance = sum((value - mean) ** 2 for value in values) / (count - 1)
+                row[f"std_{metric_key}"] = float(variance ** 0.5)
+            else:
+                row[f"std_{metric_key}"] = 0.0 if count else None
         rows.append(row)
 
     if primary_source is None and rows:
@@ -237,17 +244,25 @@ def _build_casa_parameters_summary(motility: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data, dict) or data.get("skipped"):
             continue
         grades = data.get("grades") or {}
+        grades_std = data.get("grades_std") or {}
         rows.append({
             "source": source_name,
             "track_count": data.get("track_count"),
             "rapid": grades.get("rapid"),
+            "rapid_std": grades_std.get("rapid"),
             "slow": grades.get("slow"),
+            "slow_std": grades_std.get("slow"),
             "non_progressive": grades.get("non_progressive"),
+            "non_progressive_std": grades_std.get("non_progressive"),
             "immotile": grades.get("immotile"),
+            "immotile_std": grades_std.get("immotile"),
             "percent_motile": data.get("percent_motile"),
+            "percent_motile_std": data.get("percent_motile_std"),
             "concentration_M_per_ml": data.get("concentration_M_per_ml"),
+            "concentration_M_per_ml_std": data.get("concentration_M_per_ml_std"),
             "volume_ml": data.get("volume_ml"),
             "total_sperm_count_M": data.get("total_sperm_count_M"),
+            "total_sperm_count_M_std": data.get("total_sperm_count_M_std"),
         })
     return {"available": bool(rows), "sources": rows}
 
@@ -588,26 +603,15 @@ def _print_casa_info(info: dict[str, Any]) -> None:
                     "average windows per track="
                     f"{_truncate_two_decimals(row.get('average_windows_per_track'))}"
                 )
-                print(
-                    "- "
-                    f"VCL={_truncate_two_decimals(row.get('mean_VCL'))}, "
-                    f"VSL={_truncate_two_decimals(row.get('mean_VSL'))}"
-                )
-                print(
-                    "- "
-                    f"VAP={_truncate_two_decimals(row.get('mean_VAP'))}, "
-                    f"LIN={_truncate_two_decimals(row.get('mean_LIN'))}"
-                )
-                print(
-                    "- "
-                    f"ALH={_truncate_two_decimals(row.get('mean_ALH'))}, "
-                    f"WOB={_truncate_two_decimals(row.get('mean_WOB'))}"
-                )
-                print(
-                    "- "
-                    f"STR={_truncate_two_decimals(row.get('mean_STR'))}, "
-                    f"MAD={_truncate_two_decimals(row.get('mean_MAD'))}"
-                )
+                def _ms(metric_key: str) -> str:
+                    mean = _truncate_two_decimals(row.get(f"mean_{metric_key}"))
+                    std = _truncate_two_decimals(row.get(f"std_{metric_key}"))
+                    return f"{mean}+/-{std}"
+
+                print("- " f"VCL={_ms('VCL')}, VSL={_ms('VSL')}")
+                print("- " f"VAP={_ms('VAP')}, LIN={_ms('LIN')}")
+                print("- " f"ALH={_ms('ALH')}, WOB={_ms('WOB')}")
+                print("- " f"STR={_ms('STR')}, MAD={_ms('MAD')}")
             continue
 
         if section == "casa_parameters":
@@ -622,17 +626,22 @@ def _print_casa_info(info: dict[str, Any]) -> None:
                 print(f"- {row.get('source')} (tracks={row.get('track_count')})")
                 print(
                     "- "
-                    f"%rapid={row.get('rapid')}, %slow={row.get('slow')}, "
-                    f"%non-progressive={row.get('non_progressive')}, "
-                    f"%immotile={row.get('immotile')} (%motile={row.get('percent_motile')})"
+                    f"%rapid={row.get('rapid')}+/-{row.get('rapid_std')}, "
+                    f"%slow={row.get('slow')}+/-{row.get('slow_std')}, "
+                    f"%non-progressive={row.get('non_progressive')}+/-{row.get('non_progressive_std')}, "
+                    f"%immotile={row.get('immotile')}+/-{row.get('immotile_std')} "
+                    f"(%motile={row.get('percent_motile')}+/-{row.get('percent_motile_std')})"
                 )
                 conc = row.get("concentration_M_per_ml")
                 if conc is not None:
-                    print(f"- concentration={conc} x10^6/mL")
+                    print(f"- concentration={conc}+/-{row.get('concentration_M_per_ml_std')} x10^6/mL")
                 if row.get("volume_ml") is not None:
                     print(f"- volume={row.get('volume_ml')} mL")
                 if row.get("total_sperm_count_M") is not None:
-                    print(f"- total sperm count={row.get('total_sperm_count_M')} x10^6")
+                    print(
+                        f"- total sperm count={row.get('total_sperm_count_M')}"
+                        f"+/-{row.get('total_sperm_count_M_std')} x10^6"
+                    )
             continue
 
         if section == "assessment":

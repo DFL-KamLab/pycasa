@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 from .._core._casa import _ensure_casa
@@ -69,8 +70,10 @@ def _source_track_map(
     return candidate if isinstance(candidate, dict) else {}
 
 
-def _mean_cells_per_frame(track_map: dict[str, Any]) -> float | None:
-    """Mean number of concurrently present cells per annotated frame."""
+def _cells_per_frame_stats(
+    track_map: dict[str, Any],
+) -> tuple[float | None, float | None]:
+    """Mean and standard error of the per-frame cell count."""
     per_frame: dict[int, int] = {}
     for points in track_map.values():
         if not isinstance(points, dict):
@@ -80,13 +83,29 @@ def _mean_cells_per_frame(track_map: dict[str, Any]) -> float | None:
             if frame is not None:
                 per_frame[frame] = per_frame.get(frame, 0) + 1
     if not per_frame:
-        return None
-    return sum(per_frame.values()) / len(per_frame)
+        return None, None
+    counts = list(per_frame.values())
+    n = len(counts)
+    mean = sum(counts) / n
+    if n > 1:
+        variance = sum((c - mean) ** 2 for c in counts) / (n - 1)
+        sem = (variance ** 0.5) / math.sqrt(n)
+    else:
+        sem = 0.0
+    return mean, sem
 
 
 def _round(value: float | None, digits: int = 2) -> float | None:
     """Round a value to ``digits`` places, passing ``None`` through."""
     return None if value is None else round(float(value), digits)
+
+
+def _binom_se_pct(count: int, total: int) -> float | None:
+    """Binomial standard error (in percentage points) of a grade proportion."""
+    if total <= 0:
+        return None
+    p = count / total
+    return 100.0 * math.sqrt(p * (1.0 - p) / total)
 
 
 def _concentration_million_per_ml(
@@ -150,27 +169,49 @@ def _summarize_source(
         return {"skipped": True, "reason": "no_classifiable_tracks", "track_count": 0}
 
     grades_pct = {grade: _round(counts[grade] / total * 100.0) for grade in _GRADES}
+    grades_std = {grade: _round(_binom_se_pct(counts[grade], total)) for grade in _GRADES}
 
     width_px, height_px = _resolve_video_size(casa)
-    cells_per_frame = _mean_cells_per_frame(_source_track_map(casa, source_name))
+    cells_per_frame, cells_per_frame_sem = _cells_per_frame_stats(
+        _source_track_map(casa, source_name)
+    )
     concentration = _concentration_million_per_ml(
         cells_per_frame, width_px, height_px, um_per_px, chamber_depth_um
     )
+    # Concentration scales linearly with the mean cell count, so its standard
+    # error scales by the same relative amount.
+    concentration_std = None
+    if (
+        concentration is not None
+        and cells_per_frame_sem is not None
+        and cells_per_frame
+        and cells_per_frame > 0
+    ):
+        concentration_std = concentration * (cells_per_frame_sem / cells_per_frame)
     total_count = (
         concentration * volume_ml
         if (concentration is not None and volume_ml is not None)
         else None
     )
+    total_count_std = (
+        concentration_std * volume_ml
+        if (concentration_std is not None and volume_ml is not None)
+        else None
+    )
 
     return {
         "grades": grades_pct,
+        "grades_std": grades_std,
         "percent_motile": _round(100.0 - counts["immotile"] / total * 100.0),
+        "percent_motile_std": _round(_binom_se_pct(total - counts["immotile"], total)),
         "counts": counts,
         "track_count": total,
         "cells_per_frame": _round(cells_per_frame),
         "concentration_M_per_ml": _round(concentration),
+        "concentration_M_per_ml_std": _round(concentration_std),
         "volume_ml": _round(volume_ml) if volume_ml is not None else None,
         "total_sperm_count_M": _round(total_count),
+        "total_sperm_count_M_std": _round(total_count_std),
         "velocity_metric": velocity_metric,
         "thresholds": {
             "rapid": float(rapid_threshold),
@@ -187,6 +228,7 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
         print(f"CASA parameters ({backend}:{source_name}): skipped ({summary.get('reason')})")
         return
     grades = summary["grades"]
+    gstd = summary.get("grades_std") or {}
     thr = summary["thresholds"]
     print(f"CASA parameters ({backend}:{source_name})")
     print(
@@ -195,13 +237,16 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
         f"immotile<{thr['immotile']:g} um/s, progressive STR>={thr['progressive_str']:g})"
     )
     print(
-        f"- %rapid={grades['rapid']}, %slow={grades['slow']}, "
-        f"%non-progressive={grades['non_progressive']}, %immotile={grades['immotile']} "
-        f"(%motile={summary['percent_motile']})"
+        f"- %rapid={grades['rapid']}+/-{gstd.get('rapid')}, "
+        f"%slow={grades['slow']}+/-{gstd.get('slow')}, "
+        f"%non-progressive={grades['non_progressive']}+/-{gstd.get('non_progressive')}, "
+        f"%immotile={grades['immotile']}+/-{gstd.get('immotile')} "
+        f"(%motile={summary['percent_motile']}+/-{summary.get('percent_motile_std')})"
     )
     if summary["concentration_M_per_ml"] is not None:
         print(
-            f"- concentration={summary['concentration_M_per_ml']} x10^6/mL "
+            f"- concentration={summary['concentration_M_per_ml']}"
+            f"+/-{summary.get('concentration_M_per_ml_std')} x10^6/mL "
             f"(cells/frame={summary['cells_per_frame']})"
         )
     else:
@@ -209,7 +254,10 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
     if summary["volume_ml"] is not None:
         print(f"- volume={summary['volume_ml']} mL")
     if summary["total_sperm_count_M"] is not None:
-        print(f"- total sperm count={summary['total_sperm_count_M']} x10^6")
+        print(
+            f"- total sperm count={summary['total_sperm_count_M']}"
+            f"+/-{summary.get('total_sperm_count_M_std')} x10^6"
+        )
 
 
 def casa_parameters(
