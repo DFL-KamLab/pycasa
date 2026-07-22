@@ -145,6 +145,7 @@ def _summarize_source(
     um_per_px: float | None,
     chamber_depth_um: float | None,
     volume_ml: float | None,
+    dilution_factor: float = 1.0,
 ) -> dict[str, Any]:
     """Classify every track in one source and assemble its CASA parameters."""
     counts = dict.fromkeys(_GRADES, 0)
@@ -178,6 +179,10 @@ def _summarize_source(
     concentration = _concentration_million_per_ml(
         cells_per_frame, width_px, height_px, um_per_px, chamber_depth_um
     )
+    # Cells counted in the imaged field reflect the diluted sample, so scale the
+    # concentration (and everything derived from it) back to the neat sample.
+    if concentration is not None:
+        concentration *= dilution_factor
     # Concentration scales linearly with the mean cell count, so its standard
     # error scales by the same relative amount.
     concentration_std = None
@@ -209,6 +214,7 @@ def _summarize_source(
         "cells_per_frame": _round(cells_per_frame),
         "concentration_M_per_ml": _round(concentration),
         "concentration_M_per_ml_std": _round(concentration_std),
+        "dilution_factor": _round(dilution_factor),
         "volume_ml": _round(volume_ml) if volume_ml is not None else None,
         "total_sperm_count_M": _round(total_count),
         "total_sperm_count_M_std": _round(total_count_std),
@@ -244,10 +250,12 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
         f"(%motile={summary['percent_motile']}+/-{summary.get('percent_motile_std')})"
     )
     if summary["concentration_M_per_ml"] is not None:
+        dil = summary.get("dilution_factor")
+        dil_note = f", dilution x{dil:g}" if dil and dil != 1 else ""
         print(
             f"- concentration={summary['concentration_M_per_ml']}"
             f"+/-{summary.get('concentration_M_per_ml_std')} x10^6/mL "
-            f"(cells/frame={summary['cells_per_frame']})"
+            f"(cells/frame={summary['cells_per_frame']}{dil_note})"
         )
     else:
         print("- concentration=n/a (needs um_per_px and tracked cells)")
@@ -268,6 +276,7 @@ def casa_parameters(
     velocity_metric: str = "VAP",
     volume_ml: float | None = None,
     chamber_depth_um: float | None = None,
+    dilution_factor: float | None = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Compute population-level CASA parameters from kinematic parameters.
@@ -308,6 +317,11 @@ def casa_parameters(
         chamber_depth_um (float | None, optional):
             Counting-chamber depth (um). Resolved as argument, then
             ``casa["meta"]["chamber_depth_um"]``, then the ``20`` um default.
+        dilution_factor (float | None, optional):
+            Multiplier that scales the imaged-field concentration back to the
+            neat sample (e.g. ``5`` for a 1:5 dilution). Applied to
+            concentration and total sperm count. Resolved as argument, then
+            ``casa["meta"]["dilution_factor"]``, then ``1.0`` (no dilution).
         verbose (bool, optional):
             If ``True``, print a per-source summary.
 
@@ -339,6 +353,13 @@ def casa_parameters(
     if chamber_depth_um is None:
         # Standard counting-chamber depth (e.g. Leja/Makler) when unspecified.
         chamber_depth_um = _DEFAULT_CHAMBER_DEPTH_UM
+    if dilution_factor is None:
+        dilution_factor = meta.get("dilution_factor")
+    if dilution_factor is None:
+        dilution_factor = 1.0
+    dilution_factor = float(dilution_factor)
+    if dilution_factor <= 0:
+        raise ValueError("`dilution_factor` must be a positive number.")
     volume_ml = float(volume_ml) if volume_ml is not None else None
     chamber_depth_um = float(chamber_depth_um) if chamber_depth_um is not None else None
     um_per_px = meta.get("um_per_px")
@@ -380,6 +401,7 @@ def casa_parameters(
             um_per_px,
             chamber_depth_um,
             volume_ml,
+            dilution_factor,
         )
         results[source_name] = summary
         if not summary.get("skipped"):
@@ -400,6 +422,7 @@ def casa_parameters(
         "um_per_px": um_per_px,
         "volume_ml": volume_ml,
         "chamber_depth_um": chamber_depth_um,
+        "dilution_factor": dilution_factor,
         "skipped": not bool(processed),
     }
     return casa

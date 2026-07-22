@@ -82,6 +82,7 @@ class _SessionMotilityNamespace:
         velocity_metric: str = "VAP",
         volume_ml: float | None = None,
         chamber_depth_um: float | None = None,
+        dilution_factor: float | None = None,
         *,
         verbose: bool = True,
     ) -> "Casa":
@@ -119,6 +120,11 @@ class _SessionMotilityNamespace:
                 ``casa["meta"]["chamber_depth_um"]``, then the ``20`` um
                 default. With ``um_per_px`` present this enables concentration
                 (and total-count) reporting.
+            dilution_factor (float | None, optional):
+                Multiplier scaling the imaged-field concentration back to the
+                neat sample (e.g. ``5`` for a 1:5 dilution). Applied to
+                concentration and total sperm count. Resolved as argument, then
+                ``casa["meta"]["dilution_factor"]``, then ``1.0``.
             verbose (bool, optional):
                 If ``True``, print a concise per-source summary.
 
@@ -146,6 +152,7 @@ class _SessionMotilityNamespace:
                 velocity_metric=velocity_metric,
                 volume_ml=volume_ml,
                 chamber_depth_um=chamber_depth_um,
+                dilution_factor=dilution_factor,
                 verbose=verbose,
             )
         )
