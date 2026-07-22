@@ -270,10 +270,10 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
 
 def casa_parameters(
     casa: dict[str, Any],
-    rapid_threshold: float = 25.0,
-    immotile_threshold: float = 5.0,
+    rapid_threshold: float = 35.0,
+    immotile_threshold: float = 10.0,
     progressive_str_threshold: float = 0.8,
-    velocity_metric: str = "VAP",
+    velocity_metric: str = "VCL",
     volume_ml: float | None = None,
     chamber_depth_um: float | None = None,
     dilution_factor: float | None = None,
@@ -304,14 +304,14 @@ def casa_parameters(
         casa (dict[str, Any]):
             Session dictionary; ``kinematic_parameters`` must have been run.
         rapid_threshold (float, optional):
-            Velocity (um/s) for the rapid/slow split. Default ``25`` (WHO).
+            Velocity (um/s) for the rapid/slow split. Default ``35`` (SCA).
         immotile_threshold (float, optional):
-            Velocity (um/s) below which a track is immotile. Default ``5``.
+            Velocity (um/s) below which a track is immotile. Default ``10``.
         progressive_str_threshold (float, optional):
             STR (ratio in ``[0, 1]``) for the progressive/non-progressive split.
             Default ``0.8``.
         velocity_metric (str, optional):
-            ``"VAP"`` (default), ``"VCL"`` or ``"VSL"``.
+            ``"VCL"`` (default), ``"VAP"`` or ``"VSL"``.
         volume_ml (float | None, optional):
             Ejaculate volume (mL); falls back to ``casa["meta"]["volume_ml"]``.
         chamber_depth_um (float | None, optional):

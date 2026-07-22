@@ -10,6 +10,8 @@ from ..utils import _progress_bar
 from ..utils import _ensure_import
 from ..utils import _ensure_bgr
 from ..utils import set_um_per_px
+from ..utils import set_volume_ml
+from ..utils import set_chamber_depth_um
 from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 if TYPE_CHECKING:
@@ -233,6 +235,8 @@ def load_video(
     show_progress: bool = True,
     verbose: bool = True,
     um_per_px: float | None = None,
+    volume_ml: float | None = None,
+    chamber_depth_um: float | None = None,
     magnification: str | None = None,
 ) -> "Casa":
     """Load a time-lapse video and return a fluent ``Casa`` object.
@@ -270,6 +274,12 @@ def load_video(
             not affected by this flag.
         um_per_px (float | None, optional):
             Microns-per-pixel calibration stored in metadata.
+        volume_ml (float | None, optional):
+            Ejaculate volume (mL) stored in metadata for CASA total-count
+            reporting. Equivalent to calling ``self.set_volume_ml(...)`` later.
+        chamber_depth_um (float | None, optional):
+            Counting-chamber depth (um) stored in metadata for CASA
+            concentration. Equivalent to ``self.set_chamber_depth_um(...)``.
         magnification (str | None, optional):
             Free-text magnification descriptor stored in metadata.
 
@@ -410,6 +420,10 @@ def load_video(
         casa = set_um_per_px(casa, um_per_px)
     else:
         casa["meta"]["um_per_px"] = None
+    if volume_ml is not None:
+        casa = set_volume_ml(casa, volume_ml)
+    if chamber_depth_um is not None:
+        casa = set_chamber_depth_um(casa, chamber_depth_um)
     casa["video"].update(
         {
             "path": str(video_path_obj),

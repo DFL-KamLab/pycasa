@@ -91,6 +91,8 @@ class _SessionIONamespace:
         show_progress: bool = True,
         verbose: bool = True,
         um_per_px: float | None = None,
+        volume_ml: float | None = None,
+        chamber_depth_um: float | None = None,
         magnification: str | None = None,
     ) -> "Casa":
         """Load a time-lapse video and return a fluent ``Casa`` object.
@@ -124,6 +126,12 @@ class _SessionIONamespace:
                 loading step.
             um_per_px (float | None, optional):
                 Microns-per-pixel calibration stored in metadata.
+            volume_ml (float | None, optional):
+                Ejaculate volume (mL) stored in metadata for CASA total-count
+                reporting. Equivalent to ``self.set_volume_ml(...)``.
+            chamber_depth_um (float | None, optional):
+                Counting-chamber depth (um) stored in metadata for CASA
+                concentration. Equivalent to ``self.set_chamber_depth_um(...)``.
             magnification (str | None, optional):
                 Free-text magnification descriptor stored in metadata.
 
@@ -168,6 +176,8 @@ class _SessionIONamespace:
             show_progress=show_progress,
             verbose=verbose,
             um_per_px=um_per_px,
+            volume_ml=volume_ml,
+            chamber_depth_um=chamber_depth_um,
             magnification=magnification,
         )
         return self._session._sync_from(loaded._as_dict())

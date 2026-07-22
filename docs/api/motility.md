@@ -5,7 +5,7 @@ The motility namespace has two stages:
 - **`kinematic_parameters()`** — transforms tracked trajectories into per-track, per-window kinematic metrics (VCL, VSL, VAP, LIN, ALH, WOB, STR, MAD) using a sliding-window approach.
 - **`casa_parameters()`** — aggregates those per-track kinematics into **population-level CASA parameters**: the four WHO motility grades (`%rapid`, `%slow`, `%non-progressive`, `%immotile`) plus optional sperm **concentration**, **volume**, and **total sperm count**.
 
-Set pixel calibration with `self.set_um_per_px(value)` before computing motility if you want velocity and displacement metrics in micron units (and meaningful CASA grade thresholds). `load_default_data()` sets `um_per_px = 0.24` automatically for the bundled HC004 dataset.
+Set pixel calibration with `self.set_um_per_px(value)` before computing motility if you want velocity and displacement metrics in micron units (and meaningful CASA grade thresholds). `load_default_data()` sets `um_per_px = 0.4` automatically for the bundled HC004 dataset.
 
 !!! note "This page is generated from the code"
     The signatures, parameters, and descriptions below are rendered directly from the

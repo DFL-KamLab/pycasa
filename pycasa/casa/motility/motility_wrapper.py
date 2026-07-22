@@ -76,10 +76,10 @@ class _SessionMotilityNamespace:
 
     def casa_parameters(
         self,
-        rapid_threshold: float = 25.0,
-        immotile_threshold: float = 5.0,
+        rapid_threshold: float = 35.0,
+        immotile_threshold: float = 10.0,
         progressive_str_threshold: float = 0.8,
-        velocity_metric: str = "VAP",
+        velocity_metric: str = "VCL",
         volume_ml: float | None = None,
         chamber_depth_um: float | None = None,
         dilution_factor: float | None = None,
@@ -101,17 +101,17 @@ class _SessionMotilityNamespace:
         Parameters:
             rapid_threshold (float, optional):
                 Velocity (um/s) at/above which a progressive track is *rapid*
-                (WHO grade a). Default ``25``.
+                (grade a). Default ``35`` (SCA).
             immotile_threshold (float, optional):
-                Velocity (um/s) below which a track is *immotile* (WHO grade d).
-                Default ``5``.
+                Velocity (um/s) below which a track is *immotile* (grade d).
+                Default ``10`` (SCA).
             progressive_str_threshold (float, optional):
                 STR (VSL/VAP, ratio in ``[0, 1]``) at/above which a motile track
                 is *progressive*; below it the track is *non-progressive*
-                (WHO grade c). Default ``0.8``.
+                (grade c). Default ``0.8``.
             velocity_metric (str, optional):
                 Which kinematic velocity drives the grade thresholds
-                (``"VAP"``, ``"VCL"`` or ``"VSL"``). Default ``"VAP"``.
+                (``"VCL"``, ``"VAP"`` or ``"VSL"``). Default ``"VCL"`` (SCA).
             volume_ml (float | None, optional):
                 Ejaculate volume (mL). Overrides ``casa["meta"]["volume_ml"]``.
                 Enables volume + total-count reporting when set.

@@ -106,7 +106,7 @@ print(f"Groundtruth frames loaded: {len(gt)}")
 - First run may trigger downloads for both the dataset and the YOLO weights. Subsequent runs use the cache and complete offline.
 - Calling a second detection method after `yolo()` will overwrite the active predicted detections and emit a warning.
 - The `plot_frame` call requires `matplotlib`. If you installed with `[io,yolo]`, it is already included.
-- `load_default_data()` auto-sets `um_per_px=0.24` (HSTLI value) so you can jump straight to motility computation without a separate `self.set_um_per_px(...)` call.
+- `load_default_data()` auto-sets `um_per_px=0.4` (HSTLI value) so you can jump straight to motility computation without a separate `self.set_um_per_px(...)` call.
 
 ---
 

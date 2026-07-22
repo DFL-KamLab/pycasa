@@ -56,7 +56,7 @@ self.detection.yolo()
 self.tracking.sort(max_age=25, min_hits=3, iou_threshold=0.1)
 
 # --- Motility ---
-# um_per_px is auto-set to 0.24 by load_default_data(); call self.set_um_per_px(...) for custom videos
+# um_per_px is auto-set to 0.4 by load_default_data(); call self.set_um_per_px(...) for custom videos
 self.motility.kinematic_parameters()   # per-track velocities (VCL, VSL, VAP, ...)
 self.motility.casa_parameters()        # population WHO grades; add volume_ml=/chamber_depth_um= for conc/count
 

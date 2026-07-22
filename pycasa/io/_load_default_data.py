@@ -11,7 +11,7 @@ _VIDEO_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.avi"
 _VIDEO_META_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.json"
 _GROUNDTRUTH_DIR_NAME = "sys-casa_sub-HC004_ses-01_run-005_gt"
 _README_NAME = "README.md"
-_HSTLI_UM_PER_PX = 0.24
+_HSTLI_UM_PER_PX = 0.4
 
 
 def _resolve_data_root(path: str | None) -> Path:
