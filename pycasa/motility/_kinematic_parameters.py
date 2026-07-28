@@ -117,56 +117,69 @@ def _compute_segment_motility(
     else:
         mad = float(np.degrees(np.mean(np.abs(np.diff(np.unwrap(angles))))))
 
-    if points.shape[0] >= smooth_w and smooth_w >= 2:
-        kernel = np.ones(smooth_w, dtype=float) / smooth_w
+    if smooth_w >= 2 and points.shape[0] >= 2:
+        # Edge-preserving centered moving average: pad the ends so the averaged
+        # path keeps every point and spans the SAME frames as VCL/VSL. The old
+        # ``mode="valid"`` smoother trimmed smooth_w//2 points off each end, so
+        # VAP was measured over a shorter interior span than VSL -> STR=VSL/VAP
+        # could exceed 1 (physically impossible). Sharing ``total_time`` keeps
+        # VSL <= VAP <= VCL and STR/WOB in [0, 1].
+        w = min(smooth_w, points.shape[0])
+        pad = w // 2
+        kernel = np.ones(w, dtype=float) / w
+        # Linear-extrapolation padding: continue the endpoint slope outward so a
+        # straight track stays straight through the smoother (VAP == VCL, no
+        # endpoint shrinkage). ``mode="edge"`` would replicate the last point and
+        # pull the averaged path inward, biasing VAP low / STR high.
+        first_slope = points[1] - points[0]
+        last_slope = points[-1] - points[-2]
+        front = points[0] - first_slope * np.arange(pad, 0, -1)[:, None]
+        back = points[-1] + last_slope * np.arange(1, pad + 1)[:, None]
+        padded = np.vstack([front, points, back])
         avg_points = np.stack(
             [
-                np.convolve(points[:, 0], kernel, mode="valid"),
-                np.convolve(points[:, 1], kernel, mode="valid"),
+                np.convolve(padded[:, 0], kernel, mode="valid"),
+                np.convolve(padded[:, 1], kernel, mode="valid"),
             ],
             axis=1,
-        )
-        if avg_points.shape[0] >= 2:
-            avg_deltas = np.linalg.norm(np.diff(avg_points, axis=0), axis=1)
-            half_window = smooth_w // 2
-            effective_frames = frames[half_window : -half_window or None]
-            effective_time = (
-                (effective_frames[-1] - effective_frames[0]) / fps if fps > 0 else 0.0
-            )
-            if effective_time == 0:
-                effective_time = total_time
-            vap = float(avg_deltas.sum() / effective_time)
+        )[: points.shape[0]]
 
-            lateral_dev: list[float] = []
-            for idx, frame_idx in enumerate(range(half_window, half_window + avg_points.shape[0])):
-                if idx < avg_points.shape[0] - 1:
-                    tangent_vec = avg_points[idx + 1] - avg_points[idx]
-                else:
-                    tangent_vec = avg_points[idx] - avg_points[idx - 1]
-                tangent_norm = float(np.linalg.norm(tangent_vec))
-                if tangent_norm == 0:
-                    continue
-                tangent_unit = tangent_vec / tangent_norm
-                perpendicular_unit = np.array(
-                    [-tangent_unit[1], tangent_unit[0]],
-                    dtype=float,
-                )
-                deviation = points[frame_idx] - avg_points[idx]
-                lateral_dev.append(abs(float(np.dot(deviation, perpendicular_unit))))
-            alh = (
-                float((max(lateral_dev) - min(lateral_dev)) / 2.0)
-                if lateral_dev
-                else 0.0
+        avg_deltas = np.linalg.norm(np.diff(avg_points, axis=0), axis=1)
+        vap = float(avg_deltas.sum() / total_time)
+
+        lateral_dev: list[float] = []
+        number_avg = avg_points.shape[0]
+        for idx in range(number_avg):
+            if idx < number_avg - 1:
+                tangent_vec = avg_points[idx + 1] - avg_points[idx]
+            else:
+                tangent_vec = avg_points[idx] - avg_points[idx - 1]
+            tangent_norm = float(np.linalg.norm(tangent_vec))
+            if tangent_norm == 0:
+                continue
+            tangent_unit = tangent_vec / tangent_norm
+            perpendicular_unit = np.array(
+                [-tangent_unit[1], tangent_unit[0]],
+                dtype=float,
             )
-        else:
-            vap = 0.0
-            alh = 0.0
+            deviation = points[idx] - avg_points[idx]
+            lateral_dev.append(abs(float(np.dot(deviation, perpendicular_unit))))
+        alh = (
+            float((max(lateral_dev) - min(lateral_dev)) / 2.0)
+            if lateral_dev
+            else 0.0
+        )
     else:
         vap = 0.0
         alh = 0.0
 
     wob = float(vap / vcl) if vcl else 0.0
     str_ = float(vsl / vap) if vap else 0.0
+    # These ratios are bounded by 1 in theory (VSL <= VAP <= VCL); clamp any
+    # residual overshoot from the smoothing endpoints shifting inward.
+    lin = min(lin, 1.0)
+    wob = min(wob, 1.0)
+    str_ = min(str_, 1.0)
 
     return {
         "VCL": vcl,
@@ -359,6 +372,10 @@ def kinematic_parameters(
         - VCL/VSL/VAP are converted from px/s to um/s when calibration is
           available and used.
         - ALH is converted from px to um when calibration is available and used.
+        - VAP is the velocity along an edge-extrapolated roaming-average path
+          that spans the same frames as VCL/VSL, so the derived ratios
+          ``LIN`` (VSL/VCL), ``WOB`` (VAP/VCL) and ``STR`` (VSL/VAP) stay within
+          ``[0, 1]`` (clamped against small smoothing-endpoint residuals).
         - ``casa["meta"]["last_motility"]`` is updated for both skipped and
           successful runs.
         - A concise motility-parameter summary is printed for each processed
