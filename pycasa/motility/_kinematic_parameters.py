@@ -89,12 +89,47 @@ def _coerce_track_points(
     return normalized
 
 
+def _roaming_average(points: np.ndarray, window: int) -> np.ndarray:
+    """Centered moving average with linear-extrapolation padding.
+
+    Keeps the same number of points and preserves a straight line exactly (the
+    padded ends continue the endpoint slope), so a smoothed straight track has
+    the same length as the raw one. Used both for the VAP average path and for
+    the optional light de-jitter pre-filter on VCL/VSL.
+    """
+    number_points = points.shape[0]
+    w = min(int(window), number_points)
+    if w < 2 or number_points < 2:
+        return points
+    pad = w // 2
+    kernel = np.ones(w, dtype=float) / w
+    first_slope = points[1] - points[0]
+    last_slope = points[-1] - points[-2]
+    front = points[0] - first_slope * np.arange(pad, 0, -1)[:, None]
+    back = points[-1] + last_slope * np.arange(1, pad + 1)[:, None]
+    padded = np.vstack([front, points, back])
+    return np.stack(
+        [
+            np.convolve(padded[:, 0], kernel, mode="valid"),
+            np.convolve(padded[:, 1], kernel, mode="valid"),
+        ],
+        axis=1,
+    )[:number_points]
+
+
 def _compute_segment_motility(
     track_segment: dict[int, np.ndarray],
     fps: float,
     smooth_w: int,
+    denoise_w: int = 1,
 ) -> dict[str, float]:
-    """Compute legacy motility metrics for one sliding-window segment."""
+    """Compute legacy motility metrics for one sliding-window segment.
+
+    When ``denoise_w >= 2`` the trajectory is lightly smoothed (a short
+    roaming average) before any metric is computed, to suppress sub-pixel
+    detection-centroid jitter that otherwise inflates the raw curvilinear path
+    (VCL). ``denoise_w <= 1`` (the default) leaves the trajectory untouched.
+    """
     frames = sorted(track_segment.keys())
     points = np.array([track_segment[frame] for frame in frames], dtype=float)
     if points.shape[0] < 2:
@@ -103,6 +138,14 @@ def _compute_segment_motility(
     total_time = (frames[-1] - frames[0]) / fps if fps > 0 else 0.0
     if total_time == 0:
         total_time = 1.0
+
+    # Optional light de-jitter of the whole trajectory before measuring. VCL is
+    # a sum of every frame-to-frame step, so per-frame centroid noise of sigma
+    # pixels adds a spurious ~1.25*sigma*fps*um_per_px floor to a still cell; a
+    # short roaming average removes that high-frequency noise while preserving
+    # real (low-frequency) swimming. Default off -> identical to legacy output.
+    if denoise_w >= 2:
+        points = _roaming_average(points, denoise_w)
 
     deltas = np.diff(points, axis=0)
     distances = np.linalg.norm(deltas, axis=1)
@@ -118,31 +161,12 @@ def _compute_segment_motility(
         mad = float(np.degrees(np.mean(np.abs(np.diff(np.unwrap(angles))))))
 
     if smooth_w >= 2 and points.shape[0] >= 2:
-        # Edge-preserving centered moving average: pad the ends so the averaged
-        # path keeps every point and spans the SAME frames as VCL/VSL. The old
-        # ``mode="valid"`` smoother trimmed smooth_w//2 points off each end, so
-        # VAP was measured over a shorter interior span than VSL -> STR=VSL/VAP
-        # could exceed 1 (physically impossible). Sharing ``total_time`` keeps
-        # VSL <= VAP <= VCL and STR/WOB in [0, 1].
-        w = min(smooth_w, points.shape[0])
-        pad = w // 2
-        kernel = np.ones(w, dtype=float) / w
-        # Linear-extrapolation padding: continue the endpoint slope outward so a
-        # straight track stays straight through the smoother (VAP == VCL, no
-        # endpoint shrinkage). ``mode="edge"`` would replicate the last point and
-        # pull the averaged path inward, biasing VAP low / STR high.
-        first_slope = points[1] - points[0]
-        last_slope = points[-1] - points[-2]
-        front = points[0] - first_slope * np.arange(pad, 0, -1)[:, None]
-        back = points[-1] + last_slope * np.arange(1, pad + 1)[:, None]
-        padded = np.vstack([front, points, back])
-        avg_points = np.stack(
-            [
-                np.convolve(padded[:, 0], kernel, mode="valid"),
-                np.convolve(padded[:, 1], kernel, mode="valid"),
-            ],
-            axis=1,
-        )[: points.shape[0]]
+        # VAP average path: a centered roaming average spanning the SAME frames
+        # as VCL/VSL (shares ``total_time``). Linear-extrapolation padding keeps
+        # a straight track straight so VSL <= VAP <= VCL and STR/WOB stay in
+        # [0, 1]. (The old ``mode="valid"`` smoother trimmed the ends, measuring
+        # VAP over a shorter interior span, which let STR=VSL/VAP exceed 1.)
+        avg_points = _roaming_average(points, smooth_w)
 
         avg_deltas = np.linalg.norm(np.diff(avg_points, axis=0), axis=1)
         vap = float(avg_deltas.sum() / total_time)
@@ -319,6 +343,7 @@ def kinematic_parameters(
     window_size: int = 10,
     overlap: float = 0.2,
     smoothing_window: int | None = None,
+    denoise_window: int | None = None,
     conversion_required: bool = True,
     show_progress: bool = True,
     verbose: bool = True,
@@ -341,6 +366,14 @@ def kinematic_parameters(
         smoothing_window (int | None, optional):
             Smoothing window for VAP/ALH. Defaults to
             ``max(2, window_size // 2)`` when ``None``.
+        denoise_window (int | None, optional):
+            Width of a light roaming-average pre-filter applied to each
+            trajectory before any metric is computed, to suppress sub-pixel
+            detection-centroid jitter that inflates VCL (and pushes still cells
+            above the immotile cutoff). ``None`` or ``< 2`` (the default) leaves
+            trajectories untouched, reproducing legacy output; ``3`` is a light
+            de-jitter. This is a filter on the raw path, distinct from the
+            heavier ``smoothing_window`` used only for the VAP average path.
         conversion_required (bool, optional):
             If ``True``, requires a valid positive finite
             ``casa["meta"]["um_per_px"]`` for micron conversion.
@@ -422,6 +455,9 @@ def kinematic_parameters(
         else max(2, effective_window_size // 2)
     )
     effective_smoothing_window = max(2, effective_smoothing_window)
+    effective_denoise_window = (
+        int(denoise_window) if denoise_window is not None and int(denoise_window) >= 2 else 1
+    )
     overlap_value = float(overlap)
 
     tracks_root = casa.get("tracks", {})
@@ -463,6 +499,7 @@ def kinematic_parameters(
             "window_size": effective_window_size,
             "overlap": overlap_value,
             "smoothing_window": effective_smoothing_window,
+            "denoise_window": effective_denoise_window,
             "um_per_px": scale,
             "conversion_required": bool(conversion_required),
             "tracks_used": 0,
@@ -556,6 +593,7 @@ def kinematic_parameters(
                     segment,
                     fps=fps,
                     smooth_w=effective_smoothing_window,
+                    denoise_w=effective_denoise_window,
                 )
 
                 if scale is not None:
@@ -611,6 +649,7 @@ def kinematic_parameters(
         "window_size": effective_window_size,
         "overlap": overlap_value,
         "smoothing_window": effective_smoothing_window,
+        "denoise_window": effective_denoise_window,
         "um_per_px": scale,
         "conversion_required": bool(conversion_required),
         "tracks_used": int(tracks_used_total),

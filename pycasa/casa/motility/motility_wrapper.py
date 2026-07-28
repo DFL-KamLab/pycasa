@@ -9,6 +9,7 @@ class _SessionMotilityNamespace:
         window_size: int = 10,
         overlap: float = 0.2,
         smoothing_window: int | None = None,
+        denoise_window: int | None = None,
         conversion_required: bool = True,
         *,
         show_progress: bool = True,
@@ -32,6 +33,11 @@ class _SessionMotilityNamespace:
             smoothing_window (int | None, optional):
                 Smoothing window for VAP/ALH. Defaults to
                 ``max(2, window_size // 2)`` when ``None``.
+            denoise_window (int | None, optional):
+                Light roaming-average pre-filter width applied to each
+                trajectory before measuring, to suppress detection-centroid
+                jitter that inflates VCL. ``None``/``< 2`` (default) = off
+                (legacy output); ``3`` = light de-jitter.
             conversion_required (bool, optional):
                 If ``True``, requires positive finite ``casa["meta"]["um_per_px"]``.
                 If ``False``, missing calibration keeps output in pixel units.
@@ -68,6 +74,7 @@ class _SessionMotilityNamespace:
                 window_size=window_size,
                 overlap=overlap,
                 smoothing_window=smoothing_window,
+                denoise_window=denoise_window,
                 conversion_required=conversion_required,
                 show_progress=show_progress,
                 verbose=verbose,
