@@ -93,6 +93,7 @@ class _SessionIONamespace:
         um_per_px: float | None = None,
         volume_ml: float | None = None,
         chamber_depth_um: float | None = None,
+        dilution_factor: float | None = None,
         magnification: str | None = None,
     ) -> "Casa":
         """Load a time-lapse video and return a fluent ``Casa`` object.
@@ -132,6 +133,10 @@ class _SessionIONamespace:
             chamber_depth_um (float | None, optional):
                 Counting-chamber depth (um) stored in metadata for CASA
                 concentration. Equivalent to ``self.set_chamber_depth_um(...)``.
+            dilution_factor (float | None, optional):
+                Sample dilution multiplier stored in metadata; scales CASA
+                concentration and total sperm count back to the neat sample.
+                Equivalent to ``self.set_dilution_factor(...)``.
             magnification (str | None, optional):
                 Free-text magnification descriptor stored in metadata.
 
@@ -178,6 +183,7 @@ class _SessionIONamespace:
             um_per_px=um_per_px,
             volume_ml=volume_ml,
             chamber_depth_um=chamber_depth_um,
+            dilution_factor=dilution_factor,
             magnification=magnification,
         )
         return self._session._sync_from(loaded._as_dict())

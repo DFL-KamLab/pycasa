@@ -27,15 +27,17 @@ Population parameters from `casa_parameters()`. The four WHO motility grades alw
 
 | Parameter | Needs | Meaning |
 |-----------|-------|---------|
-| **%rapid** | — | Progressive tracks with velocity ≥ `rapid_threshold` (default 25 µm/s) — WHO grade a. |
+| **%rapid** | — | Progressive tracks with velocity ≥ `rapid_threshold` (default 29 µm/s, SCA-optimized) — WHO grade a. |
 | **%slow** | — | Progressive tracks with velocity below `rapid_threshold` — WHO grade b. |
-| **%non-progressive** | — | Motile tracks with `STR` below `progressive_str_threshold` (default 0.8) — WHO grade c. |
-| **%immotile** | — | Tracks with velocity below `immotile_threshold` (default 5 µm/s) — WHO grade d. |
+| **%non-progressive** | — | Motile tracks with `STR` below `progressive_str_threshold` (default 0.68, SCA-optimized) — WHO grade c. |
+| **%immotile** | — | Tracks with velocity below `immotile_threshold` (default 19 µm/s, SCA-optimized) — WHO grade d. |
 | **concentration** (10⁶/mL) | `um_per_px` (`chamber_depth_um` defaults to 20) | Mean cells per frame ÷ field volume (field area × chamber depth). |
 | **volume** (mL) | `volume_ml` | Ejaculate volume — a manual lab measurement, passed in as metadata. |
 | **total sperm count** (10⁶) | `volume_ml` + concentration | `volume_ml × concentration`. |
 
 Set the physical inputs either as arguments to `casa_parameters(...)` or on the session via `self.set_volume_ml(...)` and `self.set_chamber_depth_um(...)`.
+
+> **Note — grade thresholds are SCA-optimized defaults.** `velocity_metric` (VCL), `rapid_threshold` (29), `immotile_threshold` (19) and `progressive_str_threshold` (0.68) were optimized on the sys-casa dataset to act as close as possible to the SCA (Sperm Class Analyzer, Microptic) system, and `kinematic_parameters()` likewise defaults to `window_size=30` (~1 s at 30 fps) and `denoise_window=2`. These are **instrument-specific** — pass explicit arguments to calibrate for your own CASA system. A yellow warning is emitted whenever a default is used.
 
 ---
 

@@ -50,3 +50,12 @@ def set_chamber_depth_um(casa: dict[str, Any], chamber_depth_um: float) -> dict[
         chamber_depth_um, "chamber_depth_um"
     )
     return casa
+
+
+def set_dilution_factor(casa: dict[str, Any], dilution_factor: float) -> dict[str, Any]:
+    """Set ``casa['meta']['dilution_factor']`` (sample dilution multiplier)."""
+    casa = _ensure_casa(casa)
+    casa["meta"]["dilution_factor"] = _ensure_positive_value(
+        dilution_factor, "dilution_factor"
+    )
+    return casa

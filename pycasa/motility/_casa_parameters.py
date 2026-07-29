@@ -13,6 +13,16 @@ _RESULT_KEY = "casa_parameters"
 _VELOCITY_METRICS = ("VAP", "VCL", "VSL")
 _GRADES = ("rapid", "slow", "non_progressive", "immotile")
 
+# Grade-classification defaults optimized on the sys-casa dataset (LOO-CV
+# validated) to reproduce the SCA (Sperm Class Analyzer, Microptic) system's
+# grade split. They are instrument-specific -- pass explicit arguments to
+# ``casa_parameters`` to calibrate for a different CASA system. Nothing is
+# hardcoded in the classifier: these are the only place the numbers live.
+_SCA_VELOCITY_METRIC = "VCL"
+_SCA_RAPID_THRESHOLD = 29.0
+_SCA_IMMOTILE_THRESHOLD = 19.0
+_SCA_PROGRESSIVE_STR_THRESHOLD = 0.68
+
 # 1 mL = 1 cm^3 = 1e12 um^3, so 1 um^3 = 1e-12 mL.
 _UM3_PER_ML = 1e12
 
@@ -270,10 +280,10 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
 
 def casa_parameters(
     casa: dict[str, Any],
-    rapid_threshold: float = 35.0,
-    immotile_threshold: float = 10.0,
-    progressive_str_threshold: float = 0.8,
-    velocity_metric: str = "VCL",
+    rapid_threshold: float | None = None,
+    immotile_threshold: float | None = None,
+    progressive_str_threshold: float | None = None,
+    velocity_metric: str | None = None,
     volume_ml: float | None = None,
     chamber_depth_um: float | None = None,
     dilution_factor: float | None = None,
@@ -303,15 +313,19 @@ def casa_parameters(
     Parameters:
         casa (dict[str, Any]):
             Session dictionary; ``kinematic_parameters`` must have been run.
-        rapid_threshold (float, optional):
-            Velocity (um/s) for the rapid/slow split. Default ``35`` (SCA).
-        immotile_threshold (float, optional):
-            Velocity (um/s) below which a track is immotile. Default ``10``.
-        progressive_str_threshold (float, optional):
+        rapid_threshold (float | None, optional):
+            Velocity (um/s) for the rapid/slow split. ``None`` (default) uses the
+            SCA-optimized ``29``; a yellow warning is emitted when any grade
+            default is used.
+        immotile_threshold (float | None, optional):
+            Velocity (um/s) below which a track is immotile. ``None`` (default)
+            uses the SCA-optimized ``19``.
+        progressive_str_threshold (float | None, optional):
             STR (ratio in ``[0, 1]``) for the progressive/non-progressive split.
-            Default ``0.8``.
-        velocity_metric (str, optional):
-            ``"VCL"`` (default), ``"VAP"`` or ``"VSL"``.
+            ``None`` (default) uses the SCA-optimized ``0.68``.
+        velocity_metric (str | None, optional):
+            ``"VCL"``, ``"VAP"`` or ``"VSL"``. ``None`` (default) uses the
+            SCA-optimized ``"VCL"``.
         volume_ml (float | None, optional):
             Ejaculate volume (mL); falls back to ``casa["meta"]["volume_ml"]``.
         chamber_depth_um (float | None, optional):
@@ -338,6 +352,37 @@ def casa_parameters(
             If ``kinematic_parameters`` output is missing.
     """
     casa = _ensure_casa(casa)
+
+    # Resolve grade-classification parameters. Any left as ``None`` falls back to
+    # the SCA-optimized default; a yellow warning then makes clear the grades are
+    # tuned to approximate the SCA system and should be recalibrated per CASA.
+    used_sca_defaults = any(
+        value is None
+        for value in (
+            rapid_threshold,
+            immotile_threshold,
+            progressive_str_threshold,
+            velocity_metric,
+        )
+    )
+    if rapid_threshold is None:
+        rapid_threshold = _SCA_RAPID_THRESHOLD
+    if immotile_threshold is None:
+        immotile_threshold = _SCA_IMMOTILE_THRESHOLD
+    if progressive_str_threshold is None:
+        progressive_str_threshold = _SCA_PROGRESSIVE_STR_THRESHOLD
+    if velocity_metric is None:
+        velocity_metric = _SCA_VELOCITY_METRIC
+    if used_sca_defaults:
+        _warn_yellow(
+            "CASA grade thresholds default to values optimized to act as close as "
+            "possible to the SCA (Sperm Class Analyzer, Microptic) system on the "
+            f"sys-casa dataset (velocity_metric={velocity_metric}, "
+            f"immotile<{float(immotile_threshold):g}, rapid>{float(rapid_threshold):g} um/s, "
+            f"progressive STR>={float(progressive_str_threshold):g}). These are "
+            "instrument-specific; pass rapid_threshold / immotile_threshold / "
+            "progressive_str_threshold / velocity_metric to calibrate for your own CASA system."
+        )
 
     velocity_metric = str(velocity_metric).upper()
     if velocity_metric not in _VELOCITY_METRICS:

@@ -15,6 +15,7 @@ from ..utils import get_video
 from ..utils import _GROUNDTRUTH_TRACKS_KEY
 from ..utils import _print_casa_info
 from ..utils import set_chamber_depth_um
+from ..utils import set_dilution_factor
 from ..utils import set_um_per_px
 from ..utils import set_volume_ml
 from .assessment import _SessionAssessmentNamespace
@@ -89,6 +90,21 @@ class Casa:
                 The same fluent session instance.
         """
         return self._sync_from(set_chamber_depth_um(self._as_dict(), chamber_depth_um))
+
+    def set_dilution_factor(self, dilution_factor: float) -> "Casa":
+        """Set the sample dilution multiplier used for concentration scaling.
+
+        Parameters:
+            dilution_factor (float):
+                Positive multiplier scaling the imaged-field concentration back
+                to the neat sample (e.g. ``5`` for a 1:5 dilution, ``1`` for
+                none). Applied to concentration and total sperm count.
+
+        Returns:
+            Casa:
+                The same fluent session instance.
+        """
+        return self._sync_from(set_dilution_factor(self._as_dict(), dilution_factor))
 
     def get_casa(self) -> dict[str, Any]:
         """Return the validated CASA dictionary."""

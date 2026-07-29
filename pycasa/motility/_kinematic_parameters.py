@@ -11,6 +11,14 @@ from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 _MOTILITY_KEYS = ("VCL", "VSL", "VAP", "LIN", "ALH", "WOB", "STR", "MAD")
 
+# Kinematic defaults optimized on the sys-casa dataset to approximate the SCA
+# (Sperm Class Analyzer, Microptic) system: ~1 s integration (30 points at
+# 30 fps) plus a light centroid de-jitter. ``window_size`` is in points, so it
+# scales with frame rate -- override both via the kinematic_parameters()
+# arguments for a different acquisition setup. Not hardcoded elsewhere.
+_SCA_WINDOW_SIZE = 30
+_SCA_DENOISE_WINDOW = 2
+
 
 def _to_int(value: Any) -> int | None:
     """Return an integer when conversion succeeds, otherwise ``None``."""
@@ -340,7 +348,7 @@ def _print_motility_parameter_summary(
 def kinematic_parameters(
     casa: dict[str, Any],
     frame_rate: float | None = None,
-    window_size: int = 10,
+    window_size: int | None = None,
     overlap: float = 0.2,
     smoothing_window: int | None = None,
     denoise_window: int | None = None,
@@ -358,8 +366,11 @@ def kinematic_parameters(
             FPS override. If ``None``, uses ``casa["meta"]["sampling_rate"]``
             (read from the video). If that is also unavailable, a warning is
             issued and ``30`` is used as a fallback.
-        window_size (int, optional):
-            Number of points per sliding window.
+        window_size (int | None, optional):
+            Number of points per sliding window. ``None`` (default) uses the
+            SCA-optimized ``30`` (~1 s at 30 fps); since it is in points, scale
+            it with your frame rate. A yellow warning is emitted when a
+            window/de-jitter default is used.
         overlap (float, optional):
             Window overlap ratio used in legacy step calculation:
             ``step = max(1, int(window_size * (1 - overlap)))``.
@@ -370,9 +381,9 @@ def kinematic_parameters(
             Width of a light roaming-average pre-filter applied to each
             trajectory before any metric is computed, to suppress sub-pixel
             detection-centroid jitter that inflates VCL (and pushes still cells
-            above the immotile cutoff). ``None`` or ``< 2`` (the default) leaves
-            trajectories untouched, reproducing legacy output; ``3`` is a light
-            de-jitter. This is a filter on the raw path, distinct from the
+            above the immotile cutoff). ``None`` (default) uses the SCA-optimized
+            ``2`` (light de-jitter); pass ``1`` to disable and reproduce legacy
+            raw-path output. This is a filter on the raw path, distinct from the
             heavier ``smoothing_window`` used only for the VAP average path.
         conversion_required (bool, optional):
             If ``True``, requires a valid positive finite
@@ -448,6 +459,23 @@ def kinematic_parameters(
         )
         fps = 30.0
 
+    # Resolve window/de-jitter. Either left as ``None`` falls back to the
+    # SCA-optimized default and triggers a yellow warning making clear the
+    # kinematics are tuned to approximate the SCA system.
+    used_sca_kinematic_defaults = window_size is None or denoise_window is None
+    if window_size is None:
+        window_size = _SCA_WINDOW_SIZE
+    if denoise_window is None:
+        denoise_window = _SCA_DENOISE_WINDOW
+    if used_sca_kinematic_defaults:
+        _warn_yellow(
+            "window_size / denoise_window default to values optimized to act as "
+            "close as possible to the SCA (Sperm Class Analyzer, Microptic) system "
+            f"(window_size={int(window_size)} points ~1 s at 30 fps, "
+            f"denoise_window={int(denoise_window)}). window_size is in points, so scale "
+            "it with your frame rate; pass window_size / denoise_window to override."
+        )
+
     effective_window_size = max(2, int(window_size))
     effective_smoothing_window = (
         int(smoothing_window)
@@ -455,9 +483,7 @@ def kinematic_parameters(
         else max(2, effective_window_size // 2)
     )
     effective_smoothing_window = max(2, effective_smoothing_window)
-    effective_denoise_window = (
-        int(denoise_window) if denoise_window is not None and int(denoise_window) >= 2 else 1
-    )
+    effective_denoise_window = int(denoise_window) if int(denoise_window) >= 2 else 1
     overlap_value = float(overlap)
 
     tracks_root = casa.get("tracks", {})

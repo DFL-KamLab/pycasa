@@ -12,6 +12,7 @@ from ..utils import _ensure_bgr
 from ..utils import set_um_per_px
 from ..utils import set_volume_ml
 from ..utils import set_chamber_depth_um
+from ..utils import set_dilution_factor
 from ..utils import _GROUNDTRUTH_TRACKS_KEY
 
 if TYPE_CHECKING:
@@ -237,6 +238,7 @@ def load_video(
     um_per_px: float | None = None,
     volume_ml: float | None = None,
     chamber_depth_um: float | None = None,
+    dilution_factor: float | None = None,
     magnification: str | None = None,
 ) -> "Casa":
     """Load a time-lapse video and return a fluent ``Casa`` object.
@@ -280,6 +282,10 @@ def load_video(
         chamber_depth_um (float | None, optional):
             Counting-chamber depth (um) stored in metadata for CASA
             concentration. Equivalent to ``self.set_chamber_depth_um(...)``.
+        dilution_factor (float | None, optional):
+            Sample dilution multiplier stored in metadata; scales CASA
+            concentration and total sperm count back to the neat sample (e.g.
+            ``5`` for 1:5). Equivalent to ``self.set_dilution_factor(...)``.
         magnification (str | None, optional):
             Free-text magnification descriptor stored in metadata.
 
@@ -424,6 +430,8 @@ def load_video(
         casa = set_volume_ml(casa, volume_ml)
     if chamber_depth_um is not None:
         casa = set_chamber_depth_um(casa, chamber_depth_um)
+    if dilution_factor is not None:
+        casa = set_dilution_factor(casa, dilution_factor)
     casa["video"].update(
         {
             "path": str(video_path_obj),

@@ -26,6 +26,7 @@ from ._normalization_helpers import (
 )
 from ._progress_helpers import _progress_bar
 from ._setter_helpers import set_chamber_depth_um
+from ._setter_helpers import set_dilution_factor
 from ._setter_helpers import set_um_per_px
 from ._setter_helpers import set_volume_ml
 from ._tracking_helpers import _GROUNDTRUTH_TRACKS_KEY
@@ -82,6 +83,7 @@ __all__ = [
     "set_um_per_px",
     "set_volume_ml",
     "set_chamber_depth_um",
+    "set_dilution_factor",
     "_ensure_video_dimensions",
     "_convert_video_to_grayscale",
     "_ensure_original_video",

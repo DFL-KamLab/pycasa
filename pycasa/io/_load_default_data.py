@@ -12,6 +12,12 @@ _VIDEO_META_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.json"
 _GROUNDTRUTH_DIR_NAME = "sys-casa_sub-HC004_ses-01_run-005_gt"
 _README_NAME = "README.md"
 _HSTLI_UM_PER_PX = 0.24
+# HC004 session CASA metadata (sys-casa dataset): the ejaculate volume is the
+# donor's lab measurement; the chamber depth is the sys-casa acquisition
+# constant. Auto-set (like um_per_px) so the default session yields a complete
+# CASA report -- concentration AND total sperm count -- out of the box.
+_HSTLI_VOLUME_ML = 2.2
+_HSTLI_CHAMBER_DEPTH_UM = 20.7
 
 
 def _resolve_data_root(path: str | None) -> Path:
@@ -84,6 +90,8 @@ def load_default_data(
     final_frame: int | None = 100,
     sampling_rate: float | None = None,
     um_per_px: float | None = None,
+    volume_ml: float | None = None,
+    chamber_depth_um: float | None = None,
     magnification: str | None = None,
     verbose: bool = True,
 ) -> "Casa":
@@ -104,7 +112,14 @@ def load_default_data(
         sampling_rate (float | None, optional):
             Optional FPS override forwarded to :func:`pycasa.io.load_video`.
         um_per_px (float | None, optional):
-            Optional microns-per-pixel metadata value.
+            Microns-per-pixel metadata. ``None`` (default) auto-sets the HC004
+            value ``0.24``.
+        volume_ml (float | None, optional):
+            Ejaculate volume (mL). ``None`` (default) auto-sets the HC004 lab
+            value ``2.2``, enabling total-sperm-count reporting.
+        chamber_depth_um (float | None, optional):
+            Counting-chamber depth (um). ``None`` (default) auto-sets the
+            sys-casa value ``20.7``.
         magnification (str | None, optional):
             Optional magnification metadata value.
         verbose (bool, optional):
@@ -178,6 +193,14 @@ def load_default_data(
         um_per_px = _HSTLI_UM_PER_PX
         if verbose:
             print(f"um_per_px automatically set to {_HSTLI_UM_PER_PX}.")
+    if volume_ml is None:
+        volume_ml = _HSTLI_VOLUME_ML
+        if verbose:
+            print(f"volume_ml automatically set to {_HSTLI_VOLUME_ML}.")
+    if chamber_depth_um is None:
+        chamber_depth_um = _HSTLI_CHAMBER_DEPTH_UM
+        if verbose:
+            print(f"chamber_depth_um automatically set to {_HSTLI_CHAMBER_DEPTH_UM}.")
 
     return load_video(
         video_path=str(paths["video_path"]),
@@ -186,6 +209,8 @@ def load_default_data(
         final_frame=final_frame,
         sampling_rate=sampling_rate,
         um_per_px=um_per_px,
+        volume_ml=volume_ml,
+        chamber_depth_um=chamber_depth_um,
         magnification=magnification,
         verbose=verbose,
     )

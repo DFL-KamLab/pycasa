@@ -32,7 +32,8 @@ self.set_um_per_px(0.24)   # µm per pixel — adjust to match your microscope s
 
 # 4. Compute standard CASA motility metrics
 self.motility.kinematic_parameters(
-    window_size=10,    # trajectory points per sliding window
+    window_size=30,    # trajectory points per sliding window (~1 s at 30 fps; default)
+    denoise_window=2,  # light centroid de-jitter (default); pass 1 to disable
     overlap=0.2,       # fraction of window that overlaps with the previous window
 )
 

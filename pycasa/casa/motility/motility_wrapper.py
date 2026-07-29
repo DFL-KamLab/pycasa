@@ -6,7 +6,7 @@ class _SessionMotilityNamespace:
     def kinematic_parameters(
         self,
         frame_rate: float | None = None,
-        window_size: int = 10,
+        window_size: int | None = None,
         overlap: float = 0.2,
         smoothing_window: int | None = None,
         denoise_window: int | None = None,
@@ -26,8 +26,9 @@ class _SessionMotilityNamespace:
                 FPS override. If ``None``, uses ``casa["meta"]["sampling_rate"]``
                 (read from the video). If that is also unavailable, a warning
                 is issued and ``30`` is used as a fallback.
-            window_size (int, optional):
-                Number of points per sliding window.
+            window_size (int | None, optional):
+                Number of points per sliding window. ``None`` (default) uses the
+                SCA-optimized ``30`` (~1 s at 30 fps); scale with your fps.
             overlap (float, optional):
                 Window overlap ratio used in legacy step calculation.
             smoothing_window (int | None, optional):
@@ -36,8 +37,9 @@ class _SessionMotilityNamespace:
             denoise_window (int | None, optional):
                 Light roaming-average pre-filter width applied to each
                 trajectory before measuring, to suppress detection-centroid
-                jitter that inflates VCL. ``None``/``< 2`` (default) = off
-                (legacy output); ``3`` = light de-jitter.
+                jitter that inflates VCL. ``None`` (default) uses the
+                SCA-optimized ``2``; pass ``1`` to disable (legacy raw path). A
+                yellow warning fires when a window/de-jitter default is used.
             conversion_required (bool, optional):
                 If ``True``, requires positive finite ``casa["meta"]["um_per_px"]``.
                 If ``False``, missing calibration keeps output in pixel units.
@@ -83,10 +85,10 @@ class _SessionMotilityNamespace:
 
     def casa_parameters(
         self,
-        rapid_threshold: float = 35.0,
-        immotile_threshold: float = 10.0,
-        progressive_str_threshold: float = 0.8,
-        velocity_metric: str = "VCL",
+        rapid_threshold: float | None = None,
+        immotile_threshold: float | None = None,
+        progressive_str_threshold: float | None = None,
+        velocity_metric: str | None = None,
         volume_ml: float | None = None,
         chamber_depth_um: float | None = None,
         dilution_factor: float | None = None,
@@ -106,19 +108,21 @@ class _SessionMotilityNamespace:
         Run :meth:`kinematic_parameters` first.
 
         Parameters:
-            rapid_threshold (float, optional):
+            rapid_threshold (float | None, optional):
                 Velocity (um/s) at/above which a progressive track is *rapid*
-                (grade a). Default ``35`` (SCA).
-            immotile_threshold (float, optional):
+                (grade a). ``None`` (default) uses the SCA-optimized ``29``.
+            immotile_threshold (float | None, optional):
                 Velocity (um/s) below which a track is *immotile* (grade d).
-                Default ``10`` (SCA).
-            progressive_str_threshold (float, optional):
+                ``None`` (default) uses the SCA-optimized ``19``.
+            progressive_str_threshold (float | None, optional):
                 STR (VSL/VAP, ratio in ``[0, 1]``) at/above which a motile track
                 is *progressive*; below it the track is *non-progressive*
-                (grade c). Default ``0.8``.
-            velocity_metric (str, optional):
+                (grade c). ``None`` (default) uses the SCA-optimized ``0.68``.
+            velocity_metric (str | None, optional):
                 Which kinematic velocity drives the grade thresholds
-                (``"VCL"``, ``"VAP"`` or ``"VSL"``). Default ``"VCL"`` (SCA).
+                (``"VCL"``, ``"VAP"`` or ``"VSL"``). ``None`` (default) uses the
+                SCA-optimized ``"VCL"``. A yellow warning fires when any grade
+                default is used, since these are tuned to the SCA system.
             volume_ml (float | None, optional):
                 Ejaculate volume (mL). Overrides ``casa["meta"]["volume_ml"]``.
                 Enables volume + total-count reporting when set.
