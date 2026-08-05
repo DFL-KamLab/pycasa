@@ -147,10 +147,15 @@ class _SessionMotilityNamespace:
                 subpopulations) under ``summary["experimental"]``. Exploratory
                 and not validated against a reference CASA system; emits a yellow
                 warning. Leaves standard output unchanged when ``False``.
-            hyperactivation_vcl_threshold / hyperactivation_alh_threshold / \
-hyperactivation_lin_threshold (float | None, optional):
-                Hyperactivation cutoffs (defaults ``150`` um/s, ``7`` um,
-                ``0.30``). Only used when ``experimental_parameters=True``.
+            hyperactivation_vcl_threshold (float | None, optional):
+                VCL floor (um/s) for hyperactivation (default ``150``). Only
+                used when ``experimental_parameters=True``.
+            hyperactivation_alh_threshold (float | None, optional):
+                ALH floor (um) for hyperactivation (default ``7``). Only used
+                when ``experimental_parameters=True``.
+            hyperactivation_lin_threshold (float | None, optional):
+                LIN ceiling (ratio) for hyperactivation (default ``0.30``). Only
+                used when ``experimental_parameters=True``.
             n_subpopulations (int, optional):
                 k-means cluster count for the experimental subpopulation split
                 (default ``3``). Only used when ``experimental_parameters=True``.
