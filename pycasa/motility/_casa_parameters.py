@@ -1,17 +1,34 @@
 import math
 from typing import Any
 
+import numpy as np
+
 from .._core._casa import _ensure_casa
 from ..utils import _resolve_active_tracking_backend
 from ..utils import _resolve_sort_track_sources
 from ..utils import _warn_yellow
 from ..utils import _GROUNDTRUTH_TRACKS_KEY
 from ._kinematic_parameters import _resolve_video_size
+from ._kinematic_parameters import _coerce_track_points
+from ._kinematic_parameters import _roaming_average
 
 _KINEMATIC_KEY = "kinematic_parameters"
 _RESULT_KEY = "casa_parameters"
 _VELOCITY_METRICS = ("VAP", "VCL", "VSL")
 _GRADES = ("rapid", "slow", "non_progressive", "immotile")
+
+# Feature order used for the experimental kinematic-subpopulation clustering.
+_SUBPOP_FEATURES = ("VCL", "VSL", "VAP", "LIN", "ALH", "WOB", "STR", "MAD")
+
+# --- Experimental-parameter defaults ---------------------------------------
+# These drive the OPTIONAL, opt-in experimental outputs (beat-cross frequency,
+# hyperactivation, kinematic subpopulations). They are literature-standard
+# physiological values (hyperactivation after Mortimer et al.), NOT tuned to
+# any instrument, and the whole block only runs when experimental_parameters=True.
+_HYPER_VCL_UM_S = 150.0   # curvilinear velocity floor for hyperactivation (um/s)
+_HYPER_ALH_UM = 7.0       # lateral-head-displacement floor for hyperactivation (um)
+_HYPER_LIN_MAX = 0.30     # linearity ceiling for hyperactivation (ratio)
+_DEFAULT_SUBPOPULATIONS = 3
 
 # Grade-classification defaults optimized on the sys-casa dataset (LOO-CV
 # validated) to reproduce the SCA (Sperm Class Analyzer, Microptic) system's
@@ -142,6 +159,183 @@ def _concentration_million_per_ml(
         return None
     concentration_per_ml = cells_per_frame / field_volume_ml
     return concentration_per_ml / 1e6
+
+
+def _std(values: list[float]) -> float | None:
+    """Sample standard deviation (ddof=1) of a numeric list, else ``None``."""
+    clean = [float(v) for v in values if isinstance(v, (int, float))]
+    if len(clean) < 2:
+        return 0.0 if clean else None
+    return float(np.std(clean, ddof=1))
+
+
+def _beat_cross_frequency_hz(
+    points_by_frame: dict[int, np.ndarray],
+    fps: float,
+    smoothing_window: int,
+) -> float | None:
+    """Beat-cross frequency (Hz) for one track: rate the head crosses its path.
+
+    Counts sign changes of the *signed* lateral deviation between the raw
+    trajectory and its smoothed average (VAP) path over the whole track, divided
+    by the track duration in seconds. A straight track gives 0; a lateral
+    oscillation of frequency ``f`` gives about ``2f`` crossings per second. This
+    reuses the same average-path construction as VAP/ALH.
+    """
+    frames = sorted(points_by_frame.keys())
+    if len(frames) < 3 or fps <= 0:
+        return None
+    points = np.array([points_by_frame[frame] for frame in frames], dtype=float)
+    avg = _roaming_average(points, max(2, int(smoothing_window)))
+    number_points = avg.shape[0]
+    signed: list[float] = []
+    for idx in range(number_points):
+        if idx < number_points - 1:
+            tangent = avg[idx + 1] - avg[idx]
+        else:
+            tangent = avg[idx] - avg[idx - 1]
+        norm = float(np.linalg.norm(tangent))
+        if norm == 0:
+            signed.append(0.0)
+            continue
+        unit = tangent / norm
+        perpendicular = np.array([-unit[1], unit[0]], dtype=float)
+        signed.append(float(np.dot(points[idx] - avg[idx], perpendicular)))
+    nonzero = np.array([s for s in signed if abs(s) > 1e-9], dtype=float)
+    if nonzero.size < 2:
+        return 0.0
+    crossings = int(np.count_nonzero(np.diff(np.sign(nonzero)) != 0))
+    duration_s = (frames[-1] - frames[0]) / fps
+    if duration_s <= 0:
+        return None
+    return crossings / duration_s
+
+
+def _kmeans_labels(
+    features: np.ndarray,
+    k: int,
+    iterations: int = 50,
+    seed: int = 0,
+) -> np.ndarray | None:
+    """Deterministic Lloyd's k-means (fixed seed) -> integer cluster labels.
+
+    Kept dependency-free (numpy only) so the toolkit's minimal requirements are
+    unchanged. Returns ``None`` when there are fewer samples than clusters.
+    """
+    n = features.shape[0]
+    k = min(int(k), n)
+    if k < 1:
+        return None
+    rng = np.random.default_rng(seed)
+    centroids = features[rng.choice(n, size=k, replace=False)].copy()
+    labels = np.full(n, -1, dtype=int)
+    for _ in range(iterations):
+        distances = np.linalg.norm(features[:, None, :] - centroids[None, :, :], axis=2)
+        new_labels = distances.argmin(axis=1)
+        if np.array_equal(new_labels, labels):
+            break
+        labels = new_labels
+        for cluster in range(k):
+            members = features[labels == cluster]
+            if len(members):
+                centroids[cluster] = members.mean(axis=0)
+    return labels
+
+
+def _compute_experimental(
+    casa: dict[str, Any],
+    source_name: str,
+    track_metrics_map: dict[str, Any],
+    hyper_vcl: float,
+    hyper_alh: float,
+    hyper_lin: float,
+    n_subpopulations: int,
+) -> dict[str, Any]:
+    """Assemble the OPTIONAL experimental parameters for one source.
+
+    Beat-cross frequency, hyperactivation fraction and kinematic subpopulations.
+    Degrades gracefully (``None`` entries) on sparse data and never raises, so
+    enabling it can never break the core CASA-parameter computation.
+    """
+    meta = casa.get("meta", {})
+    last_motility = meta.get("last_motility") if isinstance(meta.get("last_motility"), dict) else {}
+    fps = last_motility.get("frame_rate") or meta.get("sampling_rate") or 30.0
+    fps = float(fps) if isinstance(fps, (int, float)) and float(fps) > 0 else 30.0
+    smoothing_window = last_motility.get("smoothing_window") or 15
+    width, height = _resolve_video_size(casa)
+
+    # --- beat-cross frequency (per track, from the raw trajectory) ---
+    raw_tracks = _source_track_map(casa, source_name)
+    bcf_values: list[float] = []
+    for raw_points in raw_tracks.values():
+        if not isinstance(raw_points, dict):
+            continue
+        coerced = _coerce_track_points(raw_points, width=width, height=height)
+        bcf = _beat_cross_frequency_hz(coerced, fps, smoothing_window)
+        if bcf is not None:
+            bcf_values.append(bcf)
+
+    # --- hyperactivation + subpopulation feature vectors (from kinematics) ---
+    hyper_count = 0
+    hyper_total = 0
+    features: list[list[float]] = []
+    feature_ids: list[str] = []
+    for track_id, metrics in track_metrics_map.items():
+        if not isinstance(metrics, dict):
+            continue
+        means = {key: _mean(metrics.get(key) or []) for key in _SUBPOP_FEATURES}
+        vcl, alh, lin = means["VCL"], means["ALH"], means["LIN"]
+        if vcl is not None and alh is not None and lin is not None:
+            hyper_total += 1
+            if vcl >= hyper_vcl and alh >= hyper_alh and lin < hyper_lin:
+                hyper_count += 1
+        if all(means[key] is not None for key in _SUBPOP_FEATURES):
+            features.append([float(means[key]) for key in _SUBPOP_FEATURES])
+            feature_ids.append(str(track_id))
+
+    subpopulations: dict[str, Any] | None = None
+    if len(features) >= max(2, int(n_subpopulations)):
+        matrix = np.array(features, dtype=float)
+        standardized = (matrix - matrix.mean(axis=0)) / (matrix.std(axis=0) + 1e-9)
+        labels = _kmeans_labels(standardized, int(n_subpopulations))
+        if labels is not None:
+            k = int(labels.max()) + 1
+            sizes = [int(np.count_nonzero(labels == cluster)) for cluster in range(k)]
+            total = len(feature_ids)
+            subpopulations = {
+                "k": k,
+                "features": list(_SUBPOP_FEATURES),
+                "sizes": sizes,
+                "sizes_pct": [_round(100.0 * s / total) for s in sizes],
+                "centroids": {
+                    str(cluster): {
+                        _SUBPOP_FEATURES[j]: _round(float(matrix[labels == cluster, j].mean()))
+                        for j in range(len(_SUBPOP_FEATURES))
+                    }
+                    for cluster in range(k)
+                },
+                "labels": {feature_ids[i]: int(labels[i]) for i in range(total)},
+            }
+
+    return {
+        "beat_cross_frequency_hz": _round(_mean(bcf_values)),
+        "beat_cross_frequency_hz_std": _round(_std(bcf_values)),
+        "beat_cross_frequency_n_tracks": len(bcf_values),
+        "pct_hyperactivated": _round(100.0 * hyper_count / hyper_total) if hyper_total else None,
+        "hyperactivated_count": hyper_count,
+        "hyperactivation_total_tracks": hyper_total,
+        "hyperactivation_thresholds": {
+            "vcl_um_s": float(hyper_vcl),
+            "alh_um": float(hyper_alh),
+            "lin_max": float(hyper_lin),
+        },
+        "subpopulations": subpopulations,
+        "note": (
+            "experimental: beat-cross frequency, hyperactivation and "
+            "subpopulations are exploratory and not validated against a "
+            "reference CASA system"
+        ),
+    }
 
 
 def _summarize_source(
@@ -276,6 +470,17 @@ def _print_source_summary(backend: str, source_name: str, summary: dict[str, Any
             f"- total sperm count={summary['total_sperm_count_M']}"
             f"+/-{summary.get('total_sperm_count_M_std')} x10^6"
         )
+    exp = summary.get("experimental")
+    if isinstance(exp, dict):
+        subpop = exp.get("subpopulations") or {}
+        print(
+            "- [experimental] "
+            f"BCF={exp.get('beat_cross_frequency_hz')}+/-"
+            f"{exp.get('beat_cross_frequency_hz_std')} Hz, "
+            f"%hyperactivated={exp.get('pct_hyperactivated')}, "
+            f"subpopulations={subpop.get('sizes_pct')} "
+            "(not validated -- exploratory)"
+        )
 
 
 def casa_parameters(
@@ -287,6 +492,11 @@ def casa_parameters(
     volume_ml: float | None = None,
     chamber_depth_um: float | None = None,
     dilution_factor: float | None = None,
+    experimental_parameters: bool = False,
+    hyperactivation_vcl_threshold: float | None = None,
+    hyperactivation_alh_threshold: float | None = None,
+    hyperactivation_lin_threshold: float | None = None,
+    n_subpopulations: int = _DEFAULT_SUBPOPULATIONS,
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Compute population-level CASA parameters from kinematic parameters.
@@ -336,6 +546,26 @@ def casa_parameters(
             neat sample (e.g. ``5`` for a 1:5 dilution). Applied to
             concentration and total sperm count. Resolved as argument, then
             ``casa["meta"]["dilution_factor"]``, then ``1.0`` (no dilution).
+        experimental_parameters (bool, optional):
+            If ``True`` (default ``False``), additionally compute the
+            **experimental** parameters (beat-cross frequency, hyperactivation
+            fraction, and kinematic subpopulations) and attach them under
+            ``summary["experimental"]`` for each source. These are exploratory
+            and, unlike the motility grades and concentration, have not been
+            systematically validated against a reference CASA system; a yellow
+            warning is emitted when enabled. When ``False`` the output is
+            unchanged from a plain CASA-parameter run.
+        hyperactivation_vcl_threshold (float | None, optional):
+            VCL floor (um/s) for hyperactivation. ``None`` uses the standard
+            ``150``. Only used when ``experimental_parameters=True``.
+        hyperactivation_alh_threshold (float | None, optional):
+            ALH floor (um) for hyperactivation. ``None`` uses the standard ``7``.
+        hyperactivation_lin_threshold (float | None, optional):
+            LIN ceiling (ratio) for hyperactivation. ``None`` uses the standard
+            ``0.30``.
+        n_subpopulations (int, optional):
+            Number of k-means clusters for the experimental subpopulation
+            split (default ``3``). Only used when ``experimental_parameters=True``.
         verbose (bool, optional):
             If ``True``, print a per-source summary.
 
@@ -388,6 +618,20 @@ def casa_parameters(
     if velocity_metric not in _VELOCITY_METRICS:
         raise ValueError(
             f"`velocity_metric` must be one of {_VELOCITY_METRICS}, got {velocity_metric!r}."
+        )
+
+    # Resolve experimental-parameter settings (only used when the feature is on).
+    hyper_vcl = _HYPER_VCL_UM_S if hyperactivation_vcl_threshold is None else float(hyperactivation_vcl_threshold)
+    hyper_alh = _HYPER_ALH_UM if hyperactivation_alh_threshold is None else float(hyperactivation_alh_threshold)
+    hyper_lin = _HYPER_LIN_MAX if hyperactivation_lin_threshold is None else float(hyperactivation_lin_threshold)
+    if experimental_parameters:
+        _warn_yellow(
+            "Experimental parameters enabled (beat-cross frequency, "
+            "hyperactivation, kinematic subpopulations). These are provided for "
+            "exploratory analysis and, unlike the motility grades and "
+            "concentration, have not yet been systematically validated against a "
+            "reference CASA system on the sys-casa dataset. Treat them as "
+            "preliminary and interpret with care."
         )
 
     meta = casa.setdefault("meta", {})
@@ -448,6 +692,16 @@ def casa_parameters(
             volume_ml,
             dilution_factor,
         )
+        if experimental_parameters and not summary.get("skipped"):
+            summary["experimental"] = _compute_experimental(
+                casa,
+                source_name,
+                track_metrics_map,
+                hyper_vcl,
+                hyper_alh,
+                hyper_lin,
+                n_subpopulations,
+            )
         results[source_name] = summary
         if not summary.get("skipped"):
             processed.append(source_name)
@@ -468,6 +722,7 @@ def casa_parameters(
         "volume_ml": volume_ml,
         "chamber_depth_um": chamber_depth_um,
         "dilution_factor": dilution_factor,
+        "experimental_parameters": bool(experimental_parameters),
         "skipped": not bool(processed),
     }
     return casa

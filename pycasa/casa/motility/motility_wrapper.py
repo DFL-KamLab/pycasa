@@ -92,6 +92,11 @@ class _SessionMotilityNamespace:
         volume_ml: float | None = None,
         chamber_depth_um: float | None = None,
         dilution_factor: float | None = None,
+        experimental_parameters: bool = False,
+        hyperactivation_vcl_threshold: float | None = None,
+        hyperactivation_alh_threshold: float | None = None,
+        hyperactivation_lin_threshold: float | None = None,
+        n_subpopulations: int = 3,
         *,
         verbose: bool = True,
     ) -> "Casa":
@@ -136,6 +141,19 @@ class _SessionMotilityNamespace:
                 neat sample (e.g. ``5`` for a 1:5 dilution). Applied to
                 concentration and total sperm count. Resolved as argument, then
                 ``casa["meta"]["dilution_factor"]``, then ``1.0``.
+            experimental_parameters (bool, optional):
+                If ``True`` (default ``False``), also compute the experimental
+                parameters (beat-cross frequency, hyperactivation, kinematic
+                subpopulations) under ``summary["experimental"]``. Exploratory
+                and not validated against a reference CASA system; emits a yellow
+                warning. Leaves standard output unchanged when ``False``.
+            hyperactivation_vcl_threshold / hyperactivation_alh_threshold / \
+hyperactivation_lin_threshold (float | None, optional):
+                Hyperactivation cutoffs (defaults ``150`` um/s, ``7`` um,
+                ``0.30``). Only used when ``experimental_parameters=True``.
+            n_subpopulations (int, optional):
+                k-means cluster count for the experimental subpopulation split
+                (default ``3``). Only used when ``experimental_parameters=True``.
             verbose (bool, optional):
                 If ``True``, print a concise per-source summary.
 
@@ -164,6 +182,11 @@ class _SessionMotilityNamespace:
                 volume_ml=volume_ml,
                 chamber_depth_um=chamber_depth_um,
                 dilution_factor=dilution_factor,
+                experimental_parameters=experimental_parameters,
+                hyperactivation_vcl_threshold=hyperactivation_vcl_threshold,
+                hyperactivation_alh_threshold=hyperactivation_alh_threshold,
+                hyperactivation_lin_threshold=hyperactivation_lin_threshold,
+                n_subpopulations=n_subpopulations,
                 verbose=verbose,
             )
         )
