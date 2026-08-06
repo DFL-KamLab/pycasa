@@ -58,7 +58,7 @@ Converts the original video to grayscale first, then applies Otsu's global thres
 
 **`detection.yolo()`**
 
-Runs YOLO inference. By default `yolo_model="yolo26"` and the `sys-casa_yolo26n.pt` weights (trained on CASA semen data) are downloaded from HuggingFace on first run. Each frame's detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — are stored in `casa["detections"]["yolo26"]` (or `casa["detections"]["yolov5"]` when `yolo_model="yolov5"`). Confidence threshold defaults to `0.15`.
+Runs YOLO inference. By default `yolo_model="yolo26"` and the `sys-casa_yolo26s.pt` weights (trained on CASA semen data) are downloaded from HuggingFace on first run. Each frame's detections — `[class_id, norm_cx, norm_cy, norm_w, norm_h]` — are stored in `casa["detections"]["yolo26"]` (or `casa["detections"]["yolov5"]` when `yolo_model="yolov5"`). Confidence threshold defaults to `0.15`.
 
 **`visualization.plot_frame(frame_index=5, show_detections=True)`**
 

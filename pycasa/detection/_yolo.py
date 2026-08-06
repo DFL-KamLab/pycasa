@@ -44,7 +44,7 @@ VALID_MANAGED_YOLO26 = tuple(
 
 _DEFAULT_WEIGHTS: dict[str, str] = {
     "yolov5": "sys-casa_yolov5s.pt",
-    "yolo26": "sys-casa_yolo26n.pt",
+    "yolo26": "sys-casa_yolo26s.pt",
 }
 
 
@@ -644,8 +644,8 @@ def yolo(
 
             **YOLO26 managed weights** (downloaded automatically from HuggingFace):
 
-            - ``sys-casa_yolo26n.pt`` — nano *(default)*
-            - ``sys-casa_yolo26s.pt`` — small
+            - ``sys-casa_yolo26n.pt`` — nano
+            - ``sys-casa_yolo26s.pt`` — small *(default)*
             - ``sys-casa_yolo26m.pt`` — medium
             - ``sys-casa_yolo26l.pt`` — large
             - ``sys-casa_yolo26x.pt`` — extra-large

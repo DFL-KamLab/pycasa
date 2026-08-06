@@ -142,7 +142,7 @@ class _SessionDetectionNamespace:
                 - ``sys-casa_yolo26n/s/m/l/x.pt``
                 - ``sys-opt_yolo26n/s/m/l/x.pt``
 
-                Default: ``sys-casa_yolo26n.pt``
+                Default: ``sys-casa_yolo26s.pt``
 
             conf (float, optional):
                 Detection confidence threshold.

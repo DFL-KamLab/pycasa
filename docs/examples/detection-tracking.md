@@ -58,7 +58,7 @@ pycasa provides three detection methods. Pick the one that fits your data and co
     self = pc.io.load_default_data()
     self.detection.yolo(
         yolo_model="yolo26",             # "yolo26" (default) or "yolov5"
-        weights="sys-casa_yolo26n.pt",   # managed weight name or local .pt path
+        weights="sys-casa_yolo26s.pt",   # managed weight name or local .pt path
         conf=0.15,                        # confidence threshold
     )
     ```
