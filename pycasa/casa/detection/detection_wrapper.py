@@ -52,6 +52,7 @@ class _SessionDetectionNamespace:
         blob_min_pixel_area: int = 20,
         k_val: float = 1.7,
         border_margin_px: int = 20,
+        n_jobs: int = 1,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -69,6 +70,11 @@ class _SessionDetectionNamespace:
                 Standard-deviation multiplier used in local detector rules.
             border_margin_px (int, optional):
                 Border exclusion margin in pixels.
+            n_jobs (int, optional):
+                Processes for the per-frame feature extraction. ``1`` (default)
+                is sequential; ``-1`` uses all cores; ``>1`` uses that many.
+                Output is identical regardless of ``n_jobs``. Non-``1`` values
+                require the caller under a ``__main__`` guard.
             show_progress (bool, optional):
                 If ``True``, show shared pycasa progress bars for iterative
                 Digital Washing stages.
@@ -106,6 +112,7 @@ class _SessionDetectionNamespace:
                 blob_min_pixel_area=blob_min_pixel_area,
                 k_val=k_val,
                 border_margin_px=border_margin_px,
+                n_jobs=n_jobs,
                 show_progress=show_progress,
                 verbose=verbose,
             )

@@ -48,14 +48,38 @@ def _cent_moment(p: int, q: int, image: np.ndarray) -> float:
 
 
 def _feature_vector(image: np.ndarray) -> np.ndarray:
-    """Build seven Hu-like invariant moments from one image patch."""
-    n20 = _cent_moment(2, 0, image)
-    n02 = _cent_moment(0, 2, image)
-    n30 = _cent_moment(3, 0, image)
-    n12 = _cent_moment(1, 2, image)
-    n21 = _cent_moment(2, 1, image)
-    n03 = _cent_moment(0, 3, image)
-    n11 = _cent_moment(1, 1, image)
+    """Build seven Hu-like invariant moments from one image patch.
+
+    Computes the meshgrid and centroid once and reuses them for all seven
+    central moments (the previous version recomputed both inside each of the
+    seven ``_cent_moment`` calls). The arithmetic per moment is unchanged, so
+    the result is bit-identical to calling ``_cent_moment`` seven times.
+    """
+    image_array = np.asarray(image, dtype=float)
+    if image_array.ndim != 2:
+        raise ValueError("Central moments require a 2D array.")
+    m, n = image_array.shape
+    moo = float(np.sum(image_array))
+    if moo == 0:
+        return np.zeros(7, dtype=float)
+    yy, xx = np.meshgrid(np.arange(n, dtype=float), np.arange(m, dtype=float))
+    x_bar = float(np.sum(xx * image_array)) / moo
+    y_bar = float(np.sum(yy * image_array)) / moo
+    dx = xx - x_bar
+    dy = yy - y_bar
+
+    def _nu(p: int, q: int) -> float:
+        mu_pq = float(np.sum((dx ** p) * (dy ** q) * image_array))
+        gamma = 0.5 * (p + q) + 1.0
+        return float(mu_pq / (moo ** gamma))
+
+    n20 = _nu(2, 0)
+    n02 = _nu(0, 2)
+    n30 = _nu(3, 0)
+    n12 = _nu(1, 2)
+    n21 = _nu(2, 1)
+    n03 = _nu(0, 3)
+    n11 = _nu(1, 1)
 
     m1 = n20 + n02
     m2 = (n20 - n02) ** 2 + 4 * (n11**2)
@@ -336,6 +360,19 @@ def _features_and_detections(
     return np.empty((0, 7), dtype=float)
 
 
+def _dw_frame_worker(
+    args: tuple[np.ndarray, np.ndarray, int, int],
+) -> np.ndarray:
+    """Top-level worker so per-frame feature extraction is picklable for pools."""
+    gray_image, bin_image, frame_idx, blob_min_pixel_area = args
+    return _features_and_detections(
+        gray_image=gray_image,
+        bin_image=bin_image,
+        frame_idx=frame_idx,
+        blob_min_pixel_area=blob_min_pixel_area,
+    )
+
+
 def _features_calculation(
     video_orig: np.ndarray,
     video_bin: np.ndarray,
@@ -345,29 +382,52 @@ def _features_calculation(
     *,
     progress_desc: str,
     show_progress: bool = True,
+    n_jobs: int = 1,
 ) -> np.ndarray:
-    """Extract Digital Washing feature rows across selected frame range."""
+    """Extract Digital Washing feature rows across selected frame range.
+
+    Each frame is processed independently, so with ``n_jobs != 1`` the per-frame
+    work is spread over a process pool. Results are reassembled in frame order,
+    so the output is identical to the sequential path (``n_jobs == 1``, default).
+    """
     num_frames = int(video_orig.shape[0])
     start_index = int(max(0, min(number_training_frames, num_frames)))
-    output = np.empty((0, 7), dtype=float)
-    for frame_index in _progress_bar(
-        range(start_index, num_frames),
-        total=max(0, num_frames - start_index),
-        desc=progress_desc,
-        unit="frame",
-        leave=True,
-        enabled=show_progress,
-    ):
-        global_frame = initial_frame + frame_index
-        rows = _features_and_detections(
-            gray_image=video_orig[frame_index],
-            bin_image=video_bin[frame_index],
-            frame_idx=global_frame,
-            blob_min_pixel_area=blob_min_pixel_area,
-        )
-        if rows.size > 0:
-            output = np.vstack((output, rows))
-    return output
+    indices = list(range(start_index, num_frames))
+    if not indices:
+        return np.empty((0, 7), dtype=float)
+
+    if n_jobs == 1:
+        rows_list = [
+            _features_and_detections(
+                gray_image=video_orig[frame_index],
+                bin_image=video_bin[frame_index],
+                frame_idx=initial_frame + frame_index,
+                blob_min_pixel_area=blob_min_pixel_area,
+            )
+            for frame_index in _progress_bar(
+                indices, total=len(indices), desc=progress_desc,
+                unit="frame", leave=True, enabled=show_progress,
+            )
+        ]
+    else:
+        import os
+        from concurrent.futures import ProcessPoolExecutor
+
+        workers = os.cpu_count() or 1 if n_jobs < 0 else int(n_jobs)
+        workers = max(1, min(workers, len(indices)))
+        payload = [
+            (video_orig[i], video_bin[i], initial_frame + i, blob_min_pixel_area)
+            for i in indices
+        ]
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            # executor.map preserves input order -> frame order is kept.
+            rows_list = list(_progress_bar(
+                executor.map(_dw_frame_worker, payload), total=len(indices),
+                desc=progress_desc, unit="frame", leave=True, enabled=show_progress,
+            ))
+
+    nonempty = [rows for rows in rows_list if rows.size > 0]
+    return np.vstack(nonempty) if nonempty else np.empty((0, 7), dtype=float)
 
 
 def _local_detectors_decisions(
@@ -439,6 +499,7 @@ def digital_washing(
     blob_min_pixel_area: int = 20,
     k_val: float = 1.7,
     border_margin_px: int = 20,
+    n_jobs: int = 1,
     show_progress: bool = True,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -457,6 +518,13 @@ def digital_washing(
             Standard-deviation multiplier used in local detector rules.
         border_margin_px (int, optional):
             Border exclusion margin in pixels.
+        n_jobs (int, optional):
+            Number of processes for the per-frame feature extraction (the main
+            cost). ``1`` (default) runs sequentially with identical behavior;
+            ``-1`` uses all CPU cores; ``>1`` uses that many. Output is identical
+            regardless of ``n_jobs`` (frames are reassembled in order). Values
+            other than ``1`` require the caller to be under a
+            ``if __name__ == "__main__":`` guard (standard multiprocessing).
         show_progress (bool, optional):
             If ``True``, show shared pycasa progress bars for iterative stages.
         verbose (bool, optional):
@@ -568,6 +636,7 @@ def digital_washing(
         initial_frame=initial_frame,
         progress_desc="Digital Washing motion features extraction",
         show_progress=bool(show_progress),
+        n_jobs=int(n_jobs),
     )
     background_features = _features_calculation(
         video_orig=grayscale_video,
@@ -577,6 +646,7 @@ def digital_washing(
         initial_frame=initial_frame,
         progress_desc="Digital Washing background features extraction",
         show_progress=bool(show_progress),
+        n_jobs=int(n_jobs),
     )
 
     decisions = _local_detectors_decisions(
