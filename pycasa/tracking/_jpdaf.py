@@ -84,6 +84,19 @@ _LARGE_CLUSTER_PRUNE: float = 1e-6
 """Events with probability < this fraction of the best event are dropped for
 large clusters (> 8 measurements) to keep enumeration tractable."""
 
+_MAX_JOINT_EVENTS: int = 1_000_000
+"""Hard cap on the number of feasible joint events enumerated per cluster.
+
+The exact JPDA enumeration is the Cartesian product over each measurement's
+candidate tracks, which is exponential in cluster size. Dense/noisy detections
+(e.g. Digital Washing) can produce a single crowded gate cluster whose product
+is astronomically large, so the enumeration never finishes and the tracker
+appears to hang. When a cluster's event count would exceed this cap, JPDAF falls
+back to a bounded greedy (global-nearest-neighbour) assignment for that cluster
+only. Clusters at or below the cap enumerate exactly as before (bit-identical),
+so realistic GT/YOLO clusters are unaffected -- only the pathological clusters
+that would otherwise hang are approximated."""
+
 
 # ---------------------------------------------------------------------------
 # Helper: detection → centroid
@@ -644,6 +657,56 @@ def _find_clusters(
 # Feasible-event enumeration  (Paper Eqs. 11–14)
 # ---------------------------------------------------------------------------
 
+def _greedy_event(
+    meas_options: list[list[int]],
+    gauss_log_likelihoods: np.ndarray,
+    m_c: int,
+    n_c: int,
+    log_inv_lambda: float,
+    log_PD: float,
+    log_1mPD: float,
+) -> list[tuple[dict[int, int], float]]:
+    """Bounded fallback for pathologically large clusters.
+
+    Assigns measurements to tracks greedily by descending Gaussian likelihood,
+    one measurement per track, and returns the single resulting joint event
+    (its ``log_prob`` computed with the same formula as the exact path). Used
+    only when the exact enumeration would exceed ``_MAX_JOINT_EVENTS``; the
+    marginals from this single event are a global-nearest-neighbour assignment,
+    which is a reasonable degradation for a frame that could not be solved
+    exactly at all.
+    """
+    pairs = sorted(
+        (
+            (float(gauss_log_likelihoods[j, t]), j, t)
+            for j in range(m_c)
+            for t in meas_options[j]
+            if t >= 0
+        ),
+        reverse=True,
+    )
+    assignment = {j: -1 for j in range(m_c)}
+    used_meas: set[int] = set()
+    used_track: set[int] = set()
+    for _, j, t in pairs:
+        if j in used_meas or t in used_track:
+            continue
+        assignment[j] = t
+        used_meas.add(j)
+        used_track.add(t)
+
+    log_prob = 0.0
+    detected: set[int] = set()
+    for j, t in assignment.items():
+        if t >= 0:
+            log_prob += log_inv_lambda + float(gauss_log_likelihoods[j, t]) + log_PD
+            detected.add(t)
+    for t in range(n_c):
+        if t not in detected:
+            log_prob += log_1mPD
+    return [(assignment, log_prob)]
+
+
 def _enumerate_events(
     cluster_A: np.ndarray,
     cluster_D: np.ndarray,
@@ -696,6 +759,22 @@ def _enumerate_events(
             if cluster_A[j, t]:
                 options.append(t)
         meas_options.append(options)
+
+    # Guard against combinatorial blow-up: the exact enumeration below is the
+    # Cartesian product of ``meas_options`` (exponential in cluster size). If it
+    # would exceed the cap, fall back to a bounded greedy assignment for this
+    # cluster so the tracker cannot hang on a crowded frame. Clusters at/below
+    # the cap take the exact path unchanged.
+    n_events = 1
+    for options in meas_options:
+        n_events *= len(options)
+        if n_events > _MAX_JOINT_EVENTS:
+            break
+    if n_events > _MAX_JOINT_EVENTS:
+        return _greedy_event(
+            meas_options, gauss_log_likelihoods, m_c, n_c,
+            log_inv_lambda, log_PD, log_1mPD,
+        )
 
     events: list[tuple[dict[int, int], float]] = []
     best_log_prob = -math.inf
