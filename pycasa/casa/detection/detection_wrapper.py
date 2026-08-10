@@ -12,6 +12,7 @@ class _SessionDetectionNamespace:
         *,
         show_progress: bool = True,
         verbose: bool = True,
+        low_memory: bool = False,
         **kwargs: Any,
     ) -> "Casa":
         """Detect moving cells from video using legacy-parity logic.
@@ -25,6 +26,14 @@ class _SessionDetectionNamespace:
                 processing frames.
             verbose (bool, optional):
                 If ``True``, print concise runtime start/end summaries.
+            low_memory (bool, optional):
+                If ``True`` (``method='gm'`` only), stream the grayscale and
+                median-filtered stacks and hold the binarized video as ``uint8``.
+                Detections are bit-identical; the trade is that
+                ``med_filtered_grayscale_video`` is not stored and
+                ``binarized_moving_cells_video`` is ``uint8``. Needed to run long
+                clips -- 900 frames of 1280x1024 otherwise peaks around 30 GB.
+                Defaults to ``False``.
             **kwargs:
                 Method-specific controls forwarded unchanged to
                 :func:`pycasa.detection.detect_moving_cells`.
@@ -41,6 +50,7 @@ class _SessionDetectionNamespace:
                 method=method,
                 show_progress=show_progress,
                 verbose=verbose,
+                low_memory=low_memory,
                 **kwargs,
             )
         )

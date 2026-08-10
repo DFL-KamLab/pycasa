@@ -34,6 +34,11 @@ def _ensure_original_video(casa: dict[str, Any]) -> np.ndarray:
     return original_video
 
 
+# Frames converted per block in _convert_video_to_grayscale. Bounds the transient
+# float32 working set (~3 x 5 MB per frame at 1280x1024) without affecting output.
+_GRAYSCALE_BLOCK_FRAMES = 32
+
+
 def _convert_video_to_grayscale(original_video: np.ndarray) -> np.ndarray:
     """Convert a 3D/4D frame stack to grayscale ``uint8``."""
     if original_video.ndim == 3:
@@ -49,11 +54,24 @@ def _convert_video_to_grayscale(original_video: np.ndarray) -> np.ndarray:
         raise ValueError(f"Unsupported channel count: {channels}")
 
     # Input convention is BGR to match load_video/OpenCV path.
-    b = original_video[..., 0].astype(np.float32)
-    g = original_video[..., 1].astype(np.float32)
-    r = original_video[..., 2].astype(np.float32)
-    gray = 0.114 * b + 0.587 * g + 0.299 * r
-    return np.clip(gray, 0, 255).astype(np.uint8)
+    #
+    # Done in frame blocks rather than over the whole stack at once. Converting a
+    # 900-frame 1280x1024 video in one shot allocates three full-video float32
+    # planes plus the arithmetic temporaries (~24 GB); in blocks the transient
+    # cost is bounded by _GRAYSCALE_BLOCK_FRAMES instead of the clip length.
+    # Every operation here is element-wise along the frame axis, so blocking
+    # cannot change a single output value -- the result is bit-identical.
+    output = np.empty(original_video.shape[:3], dtype=np.uint8)
+    for start in range(0, int(original_video.shape[0]), _GRAYSCALE_BLOCK_FRAMES):
+        block = original_video[start : start + _GRAYSCALE_BLOCK_FRAMES]
+        b = block[..., 0].astype(np.float32)
+        g = block[..., 1].astype(np.float32)
+        r = block[..., 2].astype(np.float32)
+        gray = 0.114 * b + 0.587 * g + 0.299 * r
+        output[start : start + _GRAYSCALE_BLOCK_FRAMES] = np.clip(gray, 0, 255).astype(
+            np.uint8
+        )
+    return output
 
 
 def _ensure_bgr(frame: np.ndarray, cv2: Any) -> np.ndarray:

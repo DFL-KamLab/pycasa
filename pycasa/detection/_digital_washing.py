@@ -606,13 +606,21 @@ def digital_washing(
         return casa
 
     grayscale_video = _convert_video_to_grayscale(original_video)
+    # Digital Washing only ever consumes ``motion_video > 0`` and discards the
+    # median-filtered video, so the motion video is stored as uint8 (it holds
+    # only 0/255) and the grayscale/median-filtered intermediates are streamed
+    # over a sliding window rather than materialised in full. Both are purely
+    # storage choices -- the resulting mask is identical.
     motion_video, _ = _gaussian_mixture_motion_filter(
         original_video,
         num_train=int(number_training_frames),
         threshold=float(motion_threshold),
         show_progress=bool(show_progress),
+        binarized_dtype=np.uint8,
+        stream_frames=True,
     )
     motion_mask = motion_video > 0
+    del motion_video
 
     binarized_video = _binarize_video_log_method(
         grayscale_video,

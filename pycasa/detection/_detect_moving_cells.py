@@ -57,8 +57,27 @@ def _gaussian_mixture_motion_filter(
     disk_size: int = 6,
     *,
     show_progress: bool = True,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Port of legacy gaussian_mixture_motion_filter helper."""
+    binarized_dtype: Any = np.float64,
+    stream_frames: bool = False,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Port of legacy gaussian_mixture_motion_filter helper.
+
+    The per-frame arithmetic is identical regardless of the memory options
+    below; they only change how intermediates are stored.
+
+    Parameters:
+        binarized_dtype (Any, optional):
+            dtype of the returned motion video. Only ``0``/``255`` are ever
+            written, so ``np.uint8`` stores them exactly in an eighth of the
+            memory. Defaults to ``np.float64`` so existing callers see no
+            change.
+        stream_frames (bool, optional):
+            If ``True``, hold only the ``num_train + 1`` frame window that the
+            running mean/variance update actually reaches back over, instead of
+            materialising the grayscale and median-filtered videos in full.
+            The median-filtered video then cannot be returned and is ``None``.
+            Defaults to ``False``.
+    """
     scipy_signal = _ensure_import("scipy.signal", pip_name="scipy")
     medfilt2d = scipy_signal.medfilt2d
     skimage_morphology = _ensure_import("skimage.morphology", pip_name="scikit-image")
@@ -69,43 +88,96 @@ def _gaussian_mixture_motion_filter(
     erosion = skimage_morphology.erosion
     clear_border = skimage_segmentation.clear_border
 
-    grayscale_video = _convert_video_to_grayscale(original_video).astype(np.float64) / 255.0
-    num_frames, height, width = grayscale_video.shape
+    num_frames = int(original_video.shape[0])
+    height = int(original_video.shape[1])
+    width = int(original_video.shape[2])
 
-    video_float = np.zeros((num_frames, height, width), dtype=np.float64)
-    med_filtered_original_video = np.zeros((num_frames, height, width), dtype=np.float64)
-    binarized_moving_cells_video = np.zeros((num_frames, height, width), dtype=np.float64)
+    binarized_moving_cells_video = np.zeros(
+        (num_frames, height, width), dtype=binarized_dtype
+    )
 
+    def _grayscale_frame(index: int) -> np.ndarray:
+        """One frame, converted exactly as the whole-video path converts it."""
+        return (
+            _convert_video_to_grayscale(original_video[index : index + 1])[0].astype(
+                np.float64
+            )
+            / 255.0
+        )
+
+    # ``video_float`` in the original was a verbatim copy of ``grayscale_video``;
+    # the two are now one array. In streaming mode the same frames are held in a
+    # sliding window keyed by frame index instead of a full-video array.
+    if stream_frames:
+        med_filtered_original_video = None
+        _gray_window: dict[int, np.ndarray] = {}
+        _med_window: dict[int, np.ndarray] = {}
+
+        def _load(index: int) -> None:
+            gray_frame = _grayscale_frame(index)
+            _gray_window[index] = gray_frame
+            _med_window[index] = medfilt2d(gray_frame, kernel_size=med_filter_size)
+
+        def _gray(index: int) -> np.ndarray:
+            return _gray_window[index]
+
+        def _med(index: int) -> np.ndarray:
+            return _med_window[index]
+
+        def _release(index: int) -> None:
+            _gray_window.pop(index, None)
+            _med_window.pop(index, None)
+    else:
+        grayscale_video = (
+            _convert_video_to_grayscale(original_video).astype(np.float64) / 255.0
+        )
+        med_filtered_original_video = np.zeros(
+            (num_frames, height, width), dtype=np.float64
+        )
+
+        def _load(index: int) -> None:
+            med_filtered_original_video[index, :, :] = medfilt2d(
+                grayscale_video[index, :, :], kernel_size=med_filter_size
+            )
+
+        def _gray(index: int) -> np.ndarray:
+            return grayscale_video[index, :, :]
+
+        def _med(index: int) -> np.ndarray:
+            return med_filtered_original_video[index, :, :]
+
+        def _release(index: int) -> None:
+            return None
+
+    train_frames = int(max(1, min(num_train, num_frames))) if num_frames else 0
+    # Non-streaming primes every frame (as before); streaming primes only the
+    # training window and loads each later frame as the detection loop reaches it.
+    prepared = range(train_frames) if stream_frames else range(num_frames)
     for curr_frame in _progress_bar(
-        range(num_frames),
-        total=num_frames,
+        prepared,
+        total=len(prepared),
         desc="Gaussian mixture preparation",
         unit="frame",
         leave=True,
         enabled=show_progress,
     ):
-        med_filtered_original_video[curr_frame, :, :] = medfilt2d(
-            grayscale_video[curr_frame, :, :], kernel_size=med_filter_size
-        )
-        video_float[curr_frame, :, :] = grayscale_video[curr_frame, :, :]
+        _load(curr_frame)
 
     if num_frames == 0:
         return binarized_moving_cells_video, med_filtered_original_video
 
-    train_frames = int(max(1, min(num_train, num_frames)))
-    mean_original_video = np.mean(video_float[:train_frames, :, :], axis=0)
-    mean_med_filtered_original_video = np.mean(
-        med_filtered_original_video[:train_frames, :, :], axis=0
-    )
+    train_stack = np.stack([_gray(i) for i in range(train_frames)], axis=0)
+    med_stack = np.stack([_med(i) for i in range(train_frames)], axis=0)
+    mean_original_video = np.mean(train_stack, axis=0)
+    mean_med_filtered_original_video = np.mean(med_stack, axis=0)
 
     if train_frames > 1:
-        var_original_video = np.var(video_float[:train_frames, :, :], axis=0, ddof=1)
-        var_med_filtered_original_video = np.var(
-            med_filtered_original_video[:train_frames, :, :], axis=0, ddof=1
-        )
+        var_original_video = np.var(train_stack, axis=0, ddof=1)
+        var_med_filtered_original_video = np.var(med_stack, axis=0, ddof=1)
     else:
         var_original_video = np.zeros_like(mean_original_video)
         var_med_filtered_original_video = np.zeros_like(mean_med_filtered_original_video)
+    del train_stack, med_stack
 
     for j in _progress_bar(
         range(train_frames, num_frames),
@@ -115,6 +187,8 @@ def _gaussian_mixture_motion_filter(
         leave=True,
         enabled=show_progress,
     ):
+        if stream_frames:
+            _load(j)
         if np.any(var_original_video > (1 / 255)):
             var_original_video[var_original_video < (1 / 255)] = 1 / (255 * 3)
 
@@ -123,20 +197,20 @@ def _gaussian_mixture_motion_filter(
                 1 / (255 * 3)
             )
 
-        max_original_video_threshold = video_float[j, :, :] > (
+        max_original_video_threshold = _gray(j) > (
             mean_original_video + threshold * np.sqrt(var_original_video)
         )
-        min_original_video_threshold = video_float[j, :, :] < (
+        min_original_video_threshold = _gray(j) < (
             mean_original_video - threshold * np.sqrt(var_original_video)
         )
         detections_original_video = (
             max_original_video_threshold + min_original_video_threshold
         ).astype(int)
 
-        max_med_filtered_original_video_threshold = med_filtered_original_video[j, :, :] > (
+        max_med_filtered_original_video_threshold = _med(j) > (
             mean_med_filtered_original_video + threshold * np.sqrt(var_med_filtered_original_video)
         )
-        min_med_filtered_original_video_threshold = med_filtered_original_video[j, :, :] < (
+        min_med_filtered_original_video_threshold = _med(j) < (
             mean_med_filtered_original_video - threshold * np.sqrt(var_med_filtered_original_video)
         )
         detections_med_filtered_original_video = (
@@ -155,8 +229,8 @@ def _gaussian_mixture_motion_filter(
             mean_original_video, var_original_video = _update_mean_variance(
                 mean_original_video,
                 var_original_video,
-                video_float[j - train_frames, :, :],
-                video_float[j, :, :],
+                _gray(j - train_frames),
+                _gray(j),
                 train_frames,
             )
             (
@@ -165,10 +239,14 @@ def _gaussian_mixture_motion_filter(
             ) = _update_mean_variance(
                 mean_med_filtered_original_video,
                 var_med_filtered_original_video,
-                med_filtered_original_video[j - train_frames, :, :],
-                med_filtered_original_video[j, :, :],
+                _med(j - train_frames),
+                _med(j),
                 train_frames,
             )
+
+        # Frame j - train_frames is never read again; the next iteration reaches
+        # back only to j + 1 - train_frames.
+        _release(j - train_frames)
 
     return binarized_moving_cells_video, med_filtered_original_video
 
@@ -278,6 +356,7 @@ def detect_moving_cells(
     *,
     show_progress: bool = True,
     verbose: bool = True,
+    low_memory: bool = False,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Legacy-parity moving-cells detection.
@@ -291,6 +370,16 @@ def detect_moving_cells(
         show_progress (bool, optional):
             If ``True``, show the shared pycasa progress bar while
             processing frames.
+        low_memory (bool, optional):
+            If ``True`` (``method='gm'`` only), trade the stored full-resolution
+            intermediates for a much smaller working set: the binarized video is
+            held as ``uint8`` instead of ``float64`` (it only ever contains
+            ``0``/``255``) and the grayscale/median-filtered stacks are streamed
+            over a sliding window. **Detections are bit-identical either way**;
+            what changes is that ``casa['video']['med_filtered_grayscale_video']``
+            is not produced and ``binarized_moving_cells_video`` is ``uint8``.
+            At 900 frames of 1280x1024 this is the difference between ~30 GB and
+            a few GB. Defaults to ``False`` so existing callers are unaffected.
         verbose (bool, optional):
             If ``True``, print concise runtime start/end summaries for this
             detector. If ``False``, suppress those summaries. Warnings are not
@@ -383,8 +472,13 @@ def detect_moving_cells(
             med_filter_size=int(kwargs.get("med_filter_size", 3)),
             disk_size=int(kwargs.get("disk_size", 6)),
             show_progress=show_progress,
+            binarized_dtype=np.uint8 if low_memory else np.float64,
+            stream_frames=bool(low_memory),
         )
-        casa["video"]["med_filtered_grayscale_video"] = med_filtered_original_video
+        # Under low_memory the median-filtered stack is never materialised, so
+        # there is nothing to store (see the `low_memory` docstring note).
+        if med_filtered_original_video is not None:
+            casa["video"]["med_filtered_grayscale_video"] = med_filtered_original_video
     else:
         raise ValueError(f"method {method} is invalid.")
 
