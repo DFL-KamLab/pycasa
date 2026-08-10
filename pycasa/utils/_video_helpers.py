@@ -34,8 +34,7 @@ def _ensure_original_video(casa: dict[str, Any]) -> np.ndarray:
     return original_video
 
 
-# Frames converted per block in _convert_video_to_grayscale. Bounds the transient
-# float32 working set (~3 x 5 MB per frame at 1280x1024) without affecting output.
+# Frames converted per block in _convert_video_to_grayscale.
 _GRAYSCALE_BLOCK_FRAMES = 32
 
 
@@ -53,14 +52,9 @@ def _convert_video_to_grayscale(original_video: np.ndarray) -> np.ndarray:
     if channels < 3:
         raise ValueError(f"Unsupported channel count: {channels}")
 
-    # Input convention is BGR to match load_video/OpenCV path.
-    #
-    # Done in frame blocks rather than over the whole stack at once. Converting a
-    # 900-frame 1280x1024 video in one shot allocates three full-video float32
-    # planes plus the arithmetic temporaries (~24 GB); in blocks the transient
-    # cost is bounded by _GRAYSCALE_BLOCK_FRAMES instead of the clip length.
-    # Every operation here is element-wise along the frame axis, so blocking
-    # cannot change a single output value -- the result is bit-identical.
+    # Input convention is BGR to match load_video/OpenCV path. Converted in
+    # frame blocks so the transient float32 working set does not scale with clip
+    # length; the arithmetic is element-wise, so the result is unchanged.
     output = np.empty(original_video.shape[:3], dtype=np.uint8)
     for start in range(0, int(original_video.shape[0]), _GRAYSCALE_BLOCK_FRAMES):
         block = original_video[start : start + _GRAYSCALE_BLOCK_FRAMES]

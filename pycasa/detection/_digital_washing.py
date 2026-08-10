@@ -113,37 +113,65 @@ def _sauvola_threshold(image: np.ndarray, window: tuple[int, int], k: float) -> 
     return image_array >= threshold
 
 
+def _fspecial_log(size: int, sigma: float) -> np.ndarray:
+    """Replicate MATLAB ``fspecial('log', size, sigma)``."""
+    variance = float(sigma) ** 2
+    half = (size - 1) / 2.0
+    y, x = np.mgrid[-half : half + 1, -half : half + 1]
+    radius_sq = x**2 + y**2
+    gaussian = np.exp(-radius_sq / (2.0 * variance))
+    gaussian[gaussian < np.finfo(float).eps * gaussian.max()] = 0.0
+    total = gaussian.sum()
+    if total != 0:
+        gaussian = gaussian / total
+    laplacian = gaussian * (radius_sq - 2.0 * variance) / (variance**2)
+    return laplacian - laplacian.sum() / (size * size)
+
+
+def _grayscale_fill_holes(image: np.ndarray) -> np.ndarray:
+    """Replicate MATLAB ``imfill(I, 'holes')`` for a grayscale image."""
+    skimage_morphology = _ensure_import("skimage.morphology", pip_name="scikit-image")
+    reconstruction = skimage_morphology.reconstruction
+
+    seed = np.full(image.shape, image.max(), dtype=float)
+    seed[0, :] = image[0, :]
+    seed[-1, :] = image[-1, :]
+    seed[:, 0] = image[:, 0]
+    seed[:, -1] = image[:, -1]
+    return reconstruction(seed, image.astype(float), method="erosion")
+
+
 def _log_based_binarization(frame: np.ndarray) -> np.ndarray:
-    """Background binarization via LoG + Otsu (Section 3.1.2 of paper)."""
+    """Background binarization via LoG + Otsu (Section 3.1.2 of paper).
+
+    Port of ``Log_Based_Binarization.m``. The LoG response is held as uint8, so
+    the negative lobe is clipped to zero and the response is not rescaled.
+    """
     scipy_ndimage = _ensure_import("scipy.ndimage", pip_name="scipy")
     skimage_filters = _ensure_import("skimage.filters", pip_name="scikit-image")
     skimage_morphology = _ensure_import("skimage.morphology", pip_name="scikit-image")
     skimage_segmentation = _ensure_import(
         "skimage.segmentation", pip_name="scikit-image"
     )
-    skimage_util = _ensure_import("skimage.util", pip_name="scikit-image")
 
     binary_fill_holes = scipy_ndimage.binary_fill_holes
-    gaussian_laplace = scipy_ndimage.gaussian_laplace
+    correlate = scipy_ndimage.correlate
     threshold_otsu = skimage_filters.threshold_otsu
     binary_dilation = skimage_morphology.binary_dilation
     binary_erosion = skimage_morphology.binary_erosion
     disk = skimage_morphology.disk
     clear_border = skimage_segmentation.clear_border
-    img_as_float = skimage_util.img_as_float
 
     image = np.asarray(frame, dtype=np.uint8)
-    image_float = img_as_float(image)
-    # Paper: LoG filter (10×10 kernel, σ²=0.4 → σ≈0.632).
-    # gaussian_laplace gives negative response at bright blob centers → negate.
-    sigma_log = float(np.sqrt(0.4))
-    image_log = -gaussian_laplace(image_float, sigma=sigma_log)
-    image_log_pos = np.clip(image_log, 0.0, None)
-    mx = float(image_log_pos.max())
-    image_log_u8 = ((image_log_pos / mx) * 255).astype(np.uint8) if mx > 0 else image_log_pos.astype(np.uint8)
-    # Paper: Otsu threshold first, then fill holes, then erosion + dilation with 2×2 disk.
-    thr = float(threshold_otsu(image_log_u8)) if int(image_log_u8.max()) > 0 else 0.0
-    binary = image_log_u8 > thr
+    response = correlate(
+        image.astype(float), _fspecial_log(10, 0.40), mode="constant", cval=0.0
+    )
+    response = np.clip(np.rint(response), 0, 255).astype(np.uint8)
+    filled = _grayscale_fill_holes(response)
+    if filled.max() <= filled.min():
+        return np.zeros(image.shape, dtype=bool)
+
+    binary = filled > float(threshold_otsu(filled))
     binary_filled = binary_fill_holes(binary)
     eroded = binary_erosion(binary_filled, disk(2))
     dilated = binary_dilation(eroded, disk(2))
@@ -333,9 +361,13 @@ def _features_and_detections(
             chosen_index = 0
         chosen = local_props[chosen_index]
 
-        crop_min_r, crop_min_c, crop_max_r, crop_max_c = chosen.bbox
-        half_w = float((crop_max_c - crop_min_c) / 2.0 / 3.0)
-        half_h = float((crop_max_r - crop_min_r) / 2.0 / 3.0)
+        # Features 1-2 are the fitted-ellipse radii, as in Features_and_Detections.m.
+        # /3.0 returns them to original-image scale; the factor cancels in the
+        # k-sigma comparison.
+        minor_axis = float(getattr(chosen, "axis_minor_length", 0.0) or chosen.minor_axis_length)
+        major_axis = float(getattr(chosen, "axis_major_length", 0.0) or chosen.major_axis_length)
+        half_w = minor_axis / 2.0 / 3.0
+        half_h = major_axis / 2.0 / 3.0
         if half_w <= 0 or half_h <= 0:
             continue
 
