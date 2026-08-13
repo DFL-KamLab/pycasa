@@ -345,6 +345,13 @@ class _KalmanTrack:
         self.age: int = 0
         self.updated_this_frame: bool = False
 
+        # S and its inverse depend only on P_pred, so they are constant across
+        # every measurement tested against this track in a frame. Cached here
+        # and invalidated in predict(); see _residual_covariance().
+        self._S: np.ndarray | None = None
+        self._S_inv: np.ndarray | None = None
+        self._S_singular: bool = False
+
     # ------------------------------------------------------------------
     # Predict step  (Paper Eqs. 5–8)
     # ------------------------------------------------------------------
@@ -376,11 +383,37 @@ class _KalmanTrack:
 
         self.x_pred = x_pred
         self.P_pred = P_pred
+        self._S = None
+        self._S_inv = None
         self.age += 1
 
     # ------------------------------------------------------------------
     # Innovation  (Paper Eqs. 9–10, 12–13)
     # ------------------------------------------------------------------
+
+    def _residual_covariance(self) -> tuple[np.ndarray, np.ndarray, bool]:
+        """Return ``(S, S_inv, singular)`` for the current prediction, once.
+
+        ``S = H·P(k|k-1)·Hᵀ + N`` (Eq. 10) does not depend on the measurement,
+        so validating a frame's measurements against this track re-derives the
+        same matrix every time. Caching it makes the number of inversions per
+        frame scale with the track count instead of tracks x measurements,
+        which on crowded frames is a several-hundred-fold reduction. The values
+        are unchanged: the same inverse of the same matrix, computed once.
+
+        ``singular`` reports that ``inv`` failed and the pseudo-inverse was used,
+        which callers need in order to keep their original fallback behaviour.
+        """
+        if self._S_inv is None:
+            S = self.H @ self.P_pred @ self.H.T + self.N     # Eq. 10
+            try:
+                S_inv = np.linalg.inv(S)
+                singular = False
+            except np.linalg.LinAlgError:
+                S_inv = np.linalg.pinv(S)
+                singular = True
+            self._S, self._S_inv, self._S_singular = S, S_inv, singular
+        return self._S, self._S_inv, self._S_singular
 
     def innovation(
         self,
@@ -401,11 +434,7 @@ class _KalmanTrack:
         """
         z_pred = self.H @ self.x_pred                    # Eq. 7: ẑ(k|k-1)
         nu = measurement - z_pred                         # Eq. 9
-        S = self.H @ self.P_pred @ self.H.T + self.N     # Eq. 10
-        try:
-            S_inv = np.linalg.inv(S)
-        except np.linalg.LinAlgError:
-            S_inv = np.linalg.pinv(S)
+        S, S_inv, _ = self._residual_covariance()         # Eq. 10
         d2 = float(nu @ S_inv @ nu)                       # Eq. 13
         return nu, S, d2
 
@@ -438,11 +467,7 @@ class _KalmanTrack:
                 Paper Eq. 18.  Needed for the track-score update.
         """
         # Innovation covariance (same for all measurements of this track)
-        S = self.H @ self.P_pred @ self.H.T + self.N     # Eq. 10
-        try:
-            S_inv = np.linalg.inv(S)
-        except np.linalg.LinAlgError:
-            S_inv = np.linalg.pinv(S)
+        S, S_inv, _ = self._residual_covariance()         # Eq. 10
 
         W = self.P_pred @ self.H.T @ S_inv                # Eq. 15
 
@@ -500,17 +525,19 @@ class _KalmanTrack:
             delta = math.log(1.0 - PD)
         else:
             # Gaussian likelihood of pseudo-measurement given track (Eq. 25, bottom)
-            S = self.H @ self.P_pred @ self.H.T + self.N
+            S, S_inv, singular = self._residual_covariance()
             z_pred = self.H @ self.x_pred
             nu_tilde = pseudo_meas - z_pred
-            try:
-                S_inv = np.linalg.inv(S)
-                sign, log_det = np.linalg.slogdet(2.0 * math.pi * S)
-                if sign <= 0:
-                    log_det = 0.0
-            except np.linalg.LinAlgError:
-                S_inv = np.linalg.pinv(S)
+            if singular:
                 log_det = 0.0
+            else:
+                try:
+                    sign, log_det = np.linalg.slogdet(2.0 * math.pi * S)
+                    if sign <= 0:
+                        log_det = 0.0
+                except np.linalg.LinAlgError:
+                    S_inv = np.linalg.pinv(S)
+                    log_det = 0.0
             log_gauss = -0.5 * (float(nu_tilde @ S_inv @ nu_tilde) + log_det)
             delta = math.log(max(lambda_c, 1e-300)) * -1 + math.log(max(PD, 1e-300)) + log_gauss
 
