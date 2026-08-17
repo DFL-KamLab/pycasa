@@ -19,6 +19,13 @@ _MOTILITY_KEYS = ("VCL", "VSL", "VAP", "LIN", "ALH", "WOB", "STR", "MAD")
 _SCA_WINDOW_SIZE = 30
 _SCA_DENOISE_WINDOW = 2
 
+# Frame rate (fps) at/above which velocity-based kinematics (VCL, ALH, angular
+# change) are considered adequately sampled. Below this a yellow warning fires.
+# 50 fps follows the CASA-standard minimum recommended by the WHO laboratory
+# manual (~50-60 Hz); higher rates improve curvilinear-path fidelity further.
+# Pass ``0`` to disable.
+_MIN_FRAME_RATE_WARN = 50.0
+
 
 def _to_int(value: Any) -> int | None:
     """Return an integer when conversion succeeds, otherwise ``None``."""
@@ -353,6 +360,7 @@ def kinematic_parameters(
     smoothing_window: int | None = None,
     denoise_window: int | None = None,
     conversion_required: bool = True,
+    min_frame_rate_warn: float | None = None,
     show_progress: bool = True,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -389,6 +397,14 @@ def kinematic_parameters(
             If ``True``, requires a valid positive finite
             ``casa["meta"]["um_per_px"]`` for micron conversion.
             If ``False``, missing calibration keeps output in pixel units.
+        min_frame_rate_warn (float | None, optional):
+            Frame rate (fps) below which a yellow warning is emitted noting that
+            velocity and lateral-displacement metrics (VCL, ALH) may be
+            underestimated because the curvilinear path is undersampled. ``None``
+            (default) uses the CASA-standard minimum of ``50`` fps; pass a
+            different value to change the threshold, or ``0`` to disable the
+            check. The warning only fires for a known acquisition rate; when the
+            rate cannot be read at all the separate fallback warning applies.
         show_progress (bool, optional):
             If ``True``, show the shared pycasa progress bar while processing
             tracks.
@@ -447,6 +463,7 @@ def kinematic_parameters(
         scale = _ensure_um_per_px(um_per_px_raw)
 
     sampling_rate = meta.get("sampling_rate")
+    fps_from_source = True
     if frame_rate is not None and float(frame_rate) > 0:
         fps = float(frame_rate)
     elif isinstance(sampling_rate, (int, float)) and float(sampling_rate) > 0:
@@ -458,6 +475,22 @@ def kinematic_parameters(
             "motility metrics may be inaccurate."
         )
         fps = 30.0
+        fps_from_source = False
+
+    # Warn when a *known* acquisition rate is below the threshold recommended for
+    # reliable velocity / lateral-displacement metrics. The fallback path above
+    # already warns, so this only fires for a real, explicitly low frame rate.
+    warn_threshold = (
+        _MIN_FRAME_RATE_WARN if min_frame_rate_warn is None else float(min_frame_rate_warn)
+    )
+    if fps_from_source and warn_threshold > 0 and fps < warn_threshold:
+        _warn_yellow(
+            f"Frame rate ({fps:g} fps) is below the {warn_threshold:g} fps recommended "
+            "for reliable velocity and lateral-displacement metrics (VCL, ALH); these "
+            "may be underestimated because the curvilinear path is undersampled. Higher "
+            "acquisition rates improve fidelity. Pass min_frame_rate_warn to change the "
+            "threshold or 0 to disable this check."
+        )
 
     # Resolve window/de-jitter. Either left as ``None`` falls back to the
     # SCA-optimized default and triggers a yellow warning making clear the

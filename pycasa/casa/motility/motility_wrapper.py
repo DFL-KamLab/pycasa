@@ -11,6 +11,7 @@ class _SessionMotilityNamespace:
         smoothing_window: int | None = None,
         denoise_window: int | None = None,
         conversion_required: bool = True,
+        min_frame_rate_warn: float | None = None,
         *,
         show_progress: bool = True,
         verbose: bool = True,
@@ -43,6 +44,11 @@ class _SessionMotilityNamespace:
             conversion_required (bool, optional):
                 If ``True``, requires positive finite ``casa["meta"]["um_per_px"]``.
                 If ``False``, missing calibration keeps output in pixel units.
+            min_frame_rate_warn (float | None, optional):
+                Frame rate (fps) below which a yellow warning notes that VCL and
+                ALH may be underestimated from an undersampled curvilinear path.
+                ``None`` (default) uses the CASA-standard minimum of ``50`` fps;
+                pass a different value to change it, or ``0`` to disable.
             show_progress (bool, optional):
                 If ``True``, show the shared pycasa progress bar while
                 processing tracks.
@@ -78,6 +84,7 @@ class _SessionMotilityNamespace:
                 smoothing_window=smoothing_window,
                 denoise_window=denoise_window,
                 conversion_required=conversion_required,
+                min_frame_rate_warn=min_frame_rate_warn,
                 show_progress=show_progress,
                 verbose=verbose,
             )
