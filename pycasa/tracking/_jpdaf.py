@@ -80,6 +80,11 @@ _PCONFIRM: float = 1e-5
 _REDUNDANT_UM: float = 0.01
 """Track-suppression distance threshold (µm). Paper Appendix D."""
 
+_FALLBACK_UM_PER_PX: float = 0.857
+"""Assumed calibration used only when ``um_per_px`` is unavailable, so that any
+user overrides can still be scaled to pixel space. Chosen to reproduce the
+historical pixel-space defaults for ~0.857 µm/px microscopy."""
+
 _LARGE_CLUSTER_PRUNE: float = 1e-6
 """Events with probability < this fraction of the best event are dropped for
 large clusters (> 8 measurements) to keep enumeration tractable."""
@@ -297,6 +302,9 @@ class _KalmanTrack:
         N: np.ndarray,
         Q0: np.ndarray,
         initial_score: float,
+        c1: float = _C1,
+        c2: float = _C2,
+        c3: float = _C3,
     ) -> None:
         """Initialise a new tentative track from a single measurement.
 
@@ -323,6 +331,11 @@ class _KalmanTrack:
         self.N = N
         self.Q0 = Q0.copy()
         self.Q = Q0.copy()
+
+        # Fading-memory coefficients (Paper Eq. 8), configurable per run.
+        self.c1 = c1
+        self.c2 = c2
+        self.c3 = c3
 
         # Initial state: position from measurement, zero velocity
         self.x = np.array([measurement[0], measurement[1], 0.0, 0.0], dtype=float)
@@ -377,7 +390,7 @@ class _KalmanTrack:
 
         # Fading-memory process noise update (Eq. 8)
         nu_t = x_pred - self.x_prev
-        self.Q = _C1 * self.Q + _C2 * np.outer(nu_t, nu_t) + _C3 * self.Q0
+        self.Q = self.c1 * self.Q + self.c2 * np.outer(nu_t, nu_t) + self.c3 * self.Q0
 
         P_pred = self.F @ self.P @ self.F.T + self.Q
 
@@ -1008,6 +1021,9 @@ def _run_jpdaf_on_source(
     pconfirm: float,
     redundant_dist: float,
     show_progress: bool,
+    c1: float = _C1,
+    c2: float = _C2,
+    c3: float = _C3,
     initial_frame: int = 0,
 ) -> tuple[dict[str, dict[str, list[float]]], int] | None:
     """Run the full JPDAF pipeline on one detection source.
@@ -1198,6 +1214,7 @@ def _run_jpdaf_on_source(
                         measurement=measurements[j_idx],
                         F=F, H=H, N=N, Q0=Q0,
                         initial_score=score_init,
+                        c1=c1, c2=c2, c3=c3,
                     )
                     active_tracks.append(new_track)
 
@@ -1255,6 +1272,19 @@ def jpdaf(
     *,
     show_progress: bool = True,
     verbose: bool = True,
+    sigma_n_um: float | None = None,
+    delta_v_um: float | None = None,
+    position_gate: float | None = None,
+    velocity_gate_um: float | None = None,
+    process_noise_c1: float | None = None,
+    process_noise_c2: float | None = None,
+    process_noise_c3: float | None = None,
+    detection_probability: float | None = None,
+    clutter_density_um2: float | None = None,
+    new_target_density_um2: float | None = None,
+    p_delete: float | None = None,
+    p_confirm: float | None = None,
+    redundant_distance_um: float | None = None,
 ) -> dict[str, Any]:
     """Track detections using the JPDAF and store per-source results.
 
@@ -1347,29 +1377,40 @@ def jpdaf(
         except (TypeError, ValueError):
             pass
 
+    # Resolve dimensionless parameters (None -> paper default). These carry
+    # through unchanged in both the calibrated and fallback branches.
+    gamma_p2_r = _GAMMA_P2 if position_gate is None else float(position_gate)
+    pd_r = _PD if detection_probability is None else float(detection_probability)
+    pdelete_r = _PDELETE if p_delete is None else float(p_delete)
+    pconfirm_r = _PCONFIRM if p_confirm is None else float(p_confirm)
+    c1_r = _C1 if process_noise_c1 is None else float(process_noise_c1)
+    c2_r = _C2 if process_noise_c2 is None else float(process_noise_c2)
+    c3_r = _C3 if process_noise_c3 is None else float(process_noise_c3)
+
     if um_per_px is not None:
-        sigma_n = _SIGMA_N_UM / um_per_px
-        gamma_v = _GAMMA_V_UM / um_per_px
-        # CWNA spectral density: qIntensity = deltaV² / T  (MATLAB VideoSpermTracker line ~144)
-        # _DELTA_V_UM is the velocity-uncertainty amplitude; squaring and dividing by T
-        # converts it to the power-spectral-density form that _build_matrices expects.
-        delta_v = _DELTA_V_UM / um_per_px           # px/sec
-        q0 = (delta_v ** 2) / T                     # px²/sec³
-        lambda_c = _LAMBDA_UM2 * (um_per_px ** 2)   # lam_f in px²
-        lambda_n = _LAMBDA_N_UM2 * (um_per_px ** 2) # lam_n in px²
-        redundant_dist = _REDUNDANT_UM / um_per_px
+        sigma_n = (_SIGMA_N_UM if sigma_n_um is None else float(sigma_n_um)) / um_per_px
+        gamma_v = (_GAMMA_V_UM if velocity_gate_um is None else float(velocity_gate_um)) / um_per_px
+        # CWNA spectral density: qIntensity = deltaV² / T. The velocity-uncertainty
+        # amplitude is squared and divided by T to form the power-spectral-density
+        # value that _build_matrices expects.
+        delta_v = (_DELTA_V_UM if delta_v_um is None else float(delta_v_um)) / um_per_px
+        q0 = (delta_v ** 2) / T
+        lambda_c = (_LAMBDA_UM2 if clutter_density_um2 is None else float(clutter_density_um2)) * (um_per_px ** 2)
+        lambda_n = (_LAMBDA_N_UM2 if new_target_density_um2 is None else float(new_target_density_um2)) * (um_per_px ** 2)
+        redundant_dist = (_REDUNDANT_UM if redundant_distance_um is None else float(redundant_distance_um)) / um_per_px
     else:
         _warn_yellow(
             "um_per_px not set; using pixel-space JPDAF defaults "
             "(approximate for 0.857 µm/px microscopy)."
         )
-        sigma_n = 2.5
-        gamma_v = 350.0
-        delta_v_fallback = 23.5                      # px/sec  (≈ 20 µm/s at 0.857 µm/px)
-        q0 = (delta_v_fallback ** 2) / T             # px²/sec³
-        lambda_c = 7.3e-7                            # per px²  (1e-6 µm⁻² × 0.857² µm²/px²)
-        lambda_n = 7.3e-6                            # per px²  (1e-5 µm⁻² × 0.857² µm²/px²)
-        redundant_dist = 0.012
+        _fb = _FALLBACK_UM_PER_PX
+        sigma_n = 2.5 if sigma_n_um is None else float(sigma_n_um) / _fb
+        gamma_v = 350.0 if velocity_gate_um is None else float(velocity_gate_um) / _fb
+        delta_v_fallback = 23.5 if delta_v_um is None else float(delta_v_um) / _fb
+        q0 = (delta_v_fallback ** 2) / T
+        lambda_c = 7.3e-7 if clutter_density_um2 is None else float(clutter_density_um2) * (_fb ** 2)
+        lambda_n = 7.3e-6 if new_target_density_um2 is None else float(new_target_density_um2) * (_fb ** 2)
+        redundant_dist = 0.012 if redundant_distance_um is None else float(redundant_distance_um) / _fb
 
     # ---- Resolve detection sources ----
     detections_root = casa.get("detections", {})
@@ -1498,14 +1539,17 @@ def jpdaf(
             T=T,
             sigma_n=sigma_n,
             q0=q0,
-            gamma_p2=_GAMMA_P2,
+            gamma_p2=gamma_p2_r,
             gamma_v=gamma_v,
             lambda_c=lambda_c,
             lambda_n=lambda_n,
-            PD=_PD,
-            pdelete=_PDELETE,
-            pconfirm=_PCONFIRM,
+            PD=pd_r,
+            pdelete=pdelete_r,
+            pconfirm=pconfirm_r,
             redundant_dist=redundant_dist,
+            c1=c1_r,
+            c2=c2_r,
+            c3=c3_r,
             show_progress=show_progress,
             initial_frame=initial_frame,
         )

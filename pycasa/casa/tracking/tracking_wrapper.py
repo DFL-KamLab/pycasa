@@ -11,14 +11,28 @@ class _SessionTrackingNamespace:
         *,
         show_progress: bool = True,
         verbose: bool = True,
+        sigma_n_um: float | None = None,
+        delta_v_um: float | None = None,
+        position_gate: float | None = None,
+        velocity_gate_um: float | None = None,
+        process_noise_c1: float | None = None,
+        process_noise_c2: float | None = None,
+        process_noise_c3: float | None = None,
+        detection_probability: float | None = None,
+        clutter_density_um2: float | None = None,
+        new_target_density_um2: float | None = None,
+        p_delete: float | None = None,
+        p_confirm: float | None = None,
+        redundant_distance_um: float | None = None,
     ) -> "Casa":
         """Track detections using JPDAF and store tracks in session state.
 
         Implements the Joint Probabilistic Data Association Filter from
         Urbano et al. (2017), IEEE Transactions on Medical Imaging 36(3),
-        792–801.  All algorithm parameters (σₙ, γᵥ, λ, etc.) are drawn
-        directly from the paper and scaled to pixel space using
-        ``casa['meta']['um_per_px']``.
+        792–801.  All algorithm parameters (σₙ, γᵥ, λ, etc.) default to the
+        values published in the paper and are scaled to pixel space using
+        ``casa['meta']['um_per_px']``; each can be overridden through the
+        keyword arguments below (defaulting Urbano values in parentheses).
 
         Parameters:
             skip_gt (bool, optional):
@@ -39,6 +53,45 @@ class _SessionTrackingNamespace:
                 per-frame tracking.
             verbose (bool, optional):
                 If ``True``, print concise runtime start/end summaries.
+            sigma_n_um (float | None, optional):
+                Measurement-noise standard deviation (µm). ``None`` uses the
+                Urbano default (2.0).
+            delta_v_um (float | None, optional):
+                Velocity-uncertainty amplitude of the CWNA process noise
+                (µm/sec). ``None`` uses the Urbano default (20.0).
+            position_gate (float | None, optional):
+                Position validation-gate threshold (dimensionless χ²₂ value).
+                ``None`` uses the Urbano default (11.6183, P_G = 0.997).
+            velocity_gate_um (float | None, optional):
+                Velocity validation-gate threshold (µm/sec). ``None`` uses the
+                Urbano default (300.0).
+            process_noise_c1 (float | None, optional):
+                Fading-memory coefficient c₁. ``None`` uses the Urbano default
+                (0.30).
+            process_noise_c2 (float | None, optional):
+                Fading-memory coefficient c₂. ``None`` uses the Urbano default
+                (0.50).
+            process_noise_c3 (float | None, optional):
+                Fading-memory coefficient c₃. ``None`` uses the Urbano default
+                (0.20).
+            detection_probability (float | None, optional):
+                Per-target detection probability P_D. ``None`` uses the Urbano
+                default (0.95).
+            clutter_density_um2 (float | None, optional):
+                Poisson clutter spatial density λ (per µm²). ``None`` uses the
+                Urbano default (1e-6).
+            new_target_density_um2 (float | None, optional):
+                New-target spatial density λₙ (per µm²). ``None`` uses the
+                Urbano default (1e-5).
+            p_delete (float | None, optional):
+                Probability of deleting a true track by mistake, used for the
+                deletion threshold. ``None`` uses the Urbano default (1e-6).
+            p_confirm (float | None, optional):
+                Probability of confirming a false track by mistake, used for the
+                confirmation threshold. ``None`` uses the Urbano default (1e-5).
+            redundant_distance_um (float | None, optional):
+                Track-suppression distance below which duplicate tracks are
+                merged (µm). ``None`` uses the Urbano default (0.01).
 
         Returns:
             Casa:
@@ -66,6 +119,19 @@ class _SessionTrackingNamespace:
                 initial_frame=initial_frame,
                 show_progress=show_progress,
                 verbose=verbose,
+                sigma_n_um=sigma_n_um,
+                delta_v_um=delta_v_um,
+                position_gate=position_gate,
+                velocity_gate_um=velocity_gate_um,
+                process_noise_c1=process_noise_c1,
+                process_noise_c2=process_noise_c2,
+                process_noise_c3=process_noise_c3,
+                detection_probability=detection_probability,
+                clutter_density_um2=clutter_density_um2,
+                new_target_density_um2=new_target_density_um2,
+                p_delete=p_delete,
+                p_confirm=p_confirm,
+                redundant_distance_um=redundant_distance_um,
             )
         )
 

@@ -52,3 +52,5 @@ Source code: [https://github.com/nwojke/deep_sort](https://github.com/nwojke/dee
 **JPDAF** implements the algorithm and parameter values from:
 
 > Urbano, L.F., Masson, P., VerMilyea, M., & Kam, M. (2017). **Automatic Tracking and Motility Analysis of Human Sperm in Time-Lapse Images.** *IEEE Transactions on Medical Imaging*, 36(3), 792–801. [DOI:10.1109/TMI.2016.2630720](https://doi.org/10.1109/TMI.2016.2630720)
+
+All JPDAF parameters default to the values published in the paper and can be individually overridden through keyword arguments on `tracking.jpdaf(...)` (see the signature above). The physical parameters (e.g. `sigma_n_um`, `velocity_gate_um`) are specified in microns and scaled to pixels internally using `um_per_px`.
