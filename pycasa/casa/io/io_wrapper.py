@@ -103,13 +103,18 @@ class _SessionIONamespace:
                 Path to video file. Supported extensions are listed in
                 ``SUPPORTED_MEDIA_TYPES``.
             groundtruth_detections_path (str | None, optional):
-                Optional directory containing frame-level groundtruth detection
-                text files (YOLO ``class cx cy w h`` rows). If provided,
-                detections are loaded under ``casa["detections"]["groundtruth"]``.
+                Optional directory containing frame-level groundtruth text
+                files. Rows are either ``class cx cy w h`` (detections only) or
+                ``class cx cy w h track_id``. Detections are loaded under
+                ``casa["detections"]["groundtruth"]`` either way; when the sixth
+                ``track_id`` column is present, trajectories are imported from
+                the same files automatically.
             groundtruth_tracks_path (str | None, optional):
                 Optional directory containing frame-level groundtruth track text
-                files (YOLO rows prefixed with a persistent ``track_id``). If
-                provided, imported truth tracks are loaded under
+                files (YOLO rows suffixed with a persistent ``track_id``).
+                Usually unnecessary -- pass it only to read trajectories from a
+                different folder than the detections, which disables the
+                auto-detection. Imported truth tracks are loaded under
                 ``casa["tracks"]["groundtruth_tracks"]``.
             initial_frame (int, optional):
                 First frame index to read (0-based). Defaults to ``0``.

@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 SUPPORTED_MEDIA_TYPES = (".avi", ".mp4", ".mov", ".mkv", ".flv", ".wmv")
 
+# Ground-truth rows are ``class cx cy w h`` (5 tokens, detections only) or
+# ``class cx cy w h track_id`` (6 tokens, detections plus a persistent identity).
+_TRACK_ROW_WIDTH = 6
+
 
 
 def _frame_index_from_filename(name: str, positional_fallback: int) -> int:
@@ -108,6 +112,42 @@ def _load_groundtruth_detections(
     return locations
 
 
+def _groundtruth_row_width(groundtruth_path: str, sample_files: int = 25) -> int:
+    """Return the widest row width found in a sample of label files.
+
+    Ground-truth rows are either ``class cx cy w h`` (detections only) or
+    ``class cx cy w h track_id`` (detections plus a persistent identity). This
+    samples the folder so :func:`load_video` can tell the two apart without
+    reading every file.
+
+    Parameters:
+        groundtruth_path (str):
+            Directory containing per-frame ``*.txt`` label files.
+        sample_files (int, optional):
+            Maximum number of files to inspect, spread evenly across the folder
+            rather than taken from the front, so a run whose first frames are
+            empty is still classified correctly. Defaults to ``25``.
+
+    Returns:
+        int:
+            Widest token count seen, or ``0`` when the folder holds no rows.
+    """
+    label_files = _iter_label_files(groundtruth_path)
+    if not label_files:
+        return 0
+
+    step = max(1, len(label_files) // sample_files)
+    widest = 0
+    for _, file_path in label_files[::step][:sample_files]:
+        with file_path.open("r", encoding="utf-8") as file_handle:
+            for line in file_handle:
+                stripped = line.strip()
+                if stripped:
+                    widest = max(widest, len(stripped.split()))
+                    break  # one row characterizes the file
+    return widest
+
+
 def _load_groundtruth_tracks(
     groundtruth_tracks_path: str,
     width: int,
@@ -116,8 +156,9 @@ def _load_groundtruth_tracks(
     """Load ground-truth tracks from per-frame YOLO-with-id text files.
 
     Each label file holds one object per line in the form
-    ``track_id class cx cy w h`` (coordinates normalized to ``[0, 1]``). The
-    same ``track_id`` recurring across frames defines a persistent identity.
+    ``class cx cy w h track_id`` (coordinates normalized to ``[0, 1]``) -- a
+    plain YOLO detection row with the track id appended as a trailing column.
+    The same ``track_id`` recurring across frames defines a persistent identity.
     Only the box center is retained (pixel space) so the result matches the
     shape produced by the tracking backends:
     ``{track_id: {frame: [center_x, center_y]}}``.
@@ -125,7 +166,7 @@ def _load_groundtruth_tracks(
     Parameters:
         groundtruth_tracks_path (str):
             Directory containing ``*.txt`` files with one object per line,
-            each prefixed by a persistent track id.
+            each suffixed by a persistent track id.
         width (int):
             Video frame width in pixels, used to de-normalize ``cx``.
         height (int):
@@ -140,7 +181,9 @@ def _load_groundtruth_tracks(
     Notes:
         - The frame index is taken from the file name (see
           :func:`_frame_index_from_filename`).
-        - Rows shorter than ``track_id class cx cy`` (4 tokens) are skipped.
+        - Rows with fewer than 6 tokens (``class cx cy w h track_id``) are
+          skipped. The full row is required because the track id is the
+          trailing field, so a truncated row has no unambiguous id.
         - Coordinates already in pixel space (any value ``> 1``) are used as-is.
         - Full bounding boxes (``w``/``h``) and class are intentionally dropped
           for now; only centers are stored.
@@ -154,12 +197,14 @@ def _load_groundtruth_tracks(
         with file_path.open("r", encoding="utf-8") as file_handle:
             for line_number, line in enumerate(file_handle):
                 tokens = line.strip().split()
-                if len(tokens) < 4:
+                if len(tokens) < 6:
                     continue
-                raw_id = tokens[0]
+                # Row layout is ``class cx cy w h track_id``: a YOLO detection
+                # row with the persistent id appended as the trailing column.
+                raw_id = tokens[5]
                 try:
-                    cx = float(tokens[2])
-                    cy = float(tokens[3])
+                    cx = float(tokens[1])
+                    cy = float(tokens[2])
                 except ValueError:
                     continue
 
@@ -248,14 +293,24 @@ def load_video(
             Path to video file. Supported extensions are listed in
             ``SUPPORTED_MEDIA_TYPES``.
         groundtruth_detections_path (str | None, optional):
-            Optional directory containing frame-level groundtruth detection
-            text files (YOLO ``class cx cy w h`` rows). If provided, detections
-            are loaded under ``casa["detections"]["groundtruth"]``.
+            Optional directory containing frame-level groundtruth text files.
+            Rows are either ``class cx cy w h`` (detections only) or
+            ``class cx cy w h track_id`` (detections plus a persistent
+            identity). Detections are loaded under
+            ``casa["detections"]["groundtruth"]`` either way.
+
+            When the rows carry the sixth ``track_id`` column, trajectories are
+            imported from these same files automatically, exactly as if the
+            folder had also been passed as ``groundtruth_tracks_path``. When the
+            rows have only five columns, detections are loaded with no tracks.
         groundtruth_tracks_path (str | None, optional):
             Optional directory containing frame-level groundtruth track text
-            files (YOLO rows prefixed with a persistent ``track_id``). If
-            provided, imported truth tracks are loaded under
-            ``casa["tracks"]["groundtruth_tracks"]`` as
+            files (YOLO rows suffixed with a persistent ``track_id``). Usually
+            unnecessary: trajectories are picked up automatically from
+            ``groundtruth_detections_path`` when those rows have a sixth column.
+            Pass this only to read trajectories from a *different* folder than
+            the detections; doing so disables the auto-detection. Imported truth
+            tracks are loaded under ``casa["tracks"]["groundtruth_tracks"]`` as
             ``{track_id: {frame: [center_x, center_y]}}``. This is distinct from
             ``casa["tracks"][backend]["groundtruth"]``, which holds tracks a
             backend computed from groundtruth detections.
@@ -441,6 +496,7 @@ def load_video(
             "original_video": original_video,
         }
     )
+    auto_tracks = False
     if groundtruth_detections_path is not None:
         casa["detections"]["groundtruth"] = _load_groundtruth_detections(
             groundtruth_detections_path
@@ -448,6 +504,14 @@ def load_video(
         casa["detections"]["groundtruth_detections_path"] = str(
             groundtruth_detections_path
         )
+        # A ground-truth folder whose rows carry a 6th column holds the track id
+        # alongside each box, so trajectories come from the same files. Fall back
+        # to detections-only when the rows are the plain 5-column YOLO form.
+        if groundtruth_tracks_path is None:
+            if _groundtruth_row_width(groundtruth_detections_path) >= _TRACK_ROW_WIDTH:
+                groundtruth_tracks_path = groundtruth_detections_path
+                auto_tracks = True
+
     if groundtruth_tracks_path is not None:
         casa["tracks"][_GROUNDTRUTH_TRACKS_KEY] = _load_groundtruth_tracks(
             groundtruth_tracks_path, width, height
@@ -482,7 +546,18 @@ def load_video(
                 f"frames_with_labels={frames_with_labels}, "
                 f"labels={total_labels}"
             )
+        if groundtruth_detections_path is not None and not auto_tracks:
+            if groundtruth_tracks_path is None:
+                print(
+                    "Groundtruth rows have no track id column; "
+                    "loading detections only."
+                )
         if groundtruth_tracks_path is not None:
+            if auto_tracks:
+                print(
+                    "Groundtruth rows carry a track id column; "
+                    "importing trajectories from the same folder."
+                )
             gt_tracks = casa.get("tracks", {}).get(_GROUNDTRUTH_TRACKS_KEY, {})
             track_count = len(gt_tracks) if isinstance(gt_tracks, dict) else 0
             frames_covered = 0

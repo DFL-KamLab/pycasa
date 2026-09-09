@@ -23,27 +23,36 @@ Add `[yolo]` if you plan to use YOLOv5 for detection.
 
 ## Groundtruth format
 
-Groundtruth **detections** and groundtruth **tracks** are imported independently, via two separate arguments.
-
 ### Groundtruth detections — `groundtruth_detections_path`
 
-A folder of one plain-text file per frame. Each file contains one detection row per line in normalized YOLO format:
+A folder of one plain-text file per frame, one row per box. Rows come in two widths:
 
 ```
-<label> <norm_cx> <norm_cy> <norm_w> <norm_h>
+<label> <norm_cx> <norm_cy> <norm_w> <norm_h>              # detections only
+<label> <norm_cx> <norm_cy> <norm_w> <norm_h> <track_id>   # detections + identity
 ```
 
-The frame index for each file is taken from the **last integer group** in its file name, so `frame-170.txt`, `82_frame_170.txt`, etc. all work (no fixed naming or zero-padding required). Loaded under `casa["detections"]["groundtruth"]` and used by `assessment.evaluate_detections()`.
+**pycasa picks the right behaviour on its own.** It samples the folder and checks the row width:
+
+- **6 columns** — the trailing field is a persistent track id, so trajectories are imported from these same files, exactly as if the folder had also been passed as `groundtruth_tracks_path`.
+- **5 columns** — detections are loaded with no tracks.
+
+You do not need to say which kind you have:
+
+```python
+casa = pc.io.load_video(
+    video_path="clip.avi",
+    groundtruth_detections_path="clip_gt",   # tracks come too, if the rows have them
+)
+```
+
+The frame index for each file is taken from the **last integer group** in its file name, so `frame-170.txt`, `82_frame_170.txt`, etc. all work (no fixed naming or zero-padding required). Detections load under `casa["detections"]["groundtruth"]` and are used by `assessment.evaluate_detections()`, which reads only the first five fields — so the extra column never disturbs detection metrics.
+
+Tracks load under `casa["tracks"]["groundtruth_tracks"]` as `{track_id: {frame: [center_x, center_y]}}` (centers only, for now), with ids normalized to `t0, t1, ...`. Access with `self.get_groundtruth_tracks()`. This imported truth coexists with any tracker output and appears as its own source in the timelapse, `info()`, motility, and the motility visualizations.
 
 ### Groundtruth tracks — `groundtruth_tracks_path`
 
-A folder of per-frame files in the same YOLO layout but **prefixed with a persistent track id**, where the same id recurring across frames defines an identity:
-
-```
-<track_id> <label> <norm_cx> <norm_cy> <norm_w> <norm_h>
-```
-
-Loaded under `casa["tracks"]["groundtruth_tracks"]` as `{track_id: {frame: [center_x, center_y]}}` (centers only, for now), with ids normalized to `t0, t1, ...`. Access with `self.get_groundtruth_tracks()`. This imported truth coexists with any tracker output and appears as its own source in the timelapse, `info()`, motility, and the motility visualizations.
+Only needed when trajectories live in a **different folder** than the detections. Passing it disables the auto-detection above and reads tracks from the folder you name. If your ground truth is a single folder of 6-column rows, leave this unset.
 
 All coordinates are normalized to `[0, 1]` relative to frame width/height. Frames with no detections can be represented by an empty file or omitted entirely.
 
@@ -97,8 +106,8 @@ self.info()
 | Parameter | Type | Default | When to use |
 |-----------|------|---------|-------------|
 | `video_path` | `str` | *(required)* | Path to the input video file. |
-| `groundtruth_detections_path` | `str \| None` | `None` | Folder of per-frame `.txt` detection files (`label cx cy w h`). Enables `assessment.evaluate_detections()`. |
-| `groundtruth_tracks_path` | `str \| None` | `None` | Folder of per-frame `.txt` track files (`track_id label cx cy w h`). Imported truth tracks; access via `self.get_groundtruth_tracks()`. |
+| `groundtruth_detections_path` | `str \| None` | `None` | Folder of per-frame `.txt` files (`label cx cy w h`, or `... track_id`). Enables `assessment.evaluate_detections()`; a 6th column also imports trajectories automatically. |
+| `groundtruth_tracks_path` | `str \| None` | `None` | Only for trajectories stored in a *different* folder than the detections; disables the auto-detection. Access via `self.get_groundtruth_tracks()`. |
 | `initial_frame` / `final_frame` | `int \| None` | `0` / `None` | Clip to a sub-range of the video. Frames outside the range are not loaded. |
 | `sampling_rate` | `float \| None` | `None` | Override the FPS stored in the video container. Used by motility metric computation. |
 | `um_per_px` | `float \| None` | `None` | Pixel-to-micron calibration factor. Required for micron-unit motility output. Can also be set later with `self.set_um_per_px(value)`. |
