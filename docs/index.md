@@ -68,7 +68,7 @@ pip install "pycasa[io,detection,tracking,yolo] @ git+https://github.com/DFL-Kam
 
     ---
 
-    `load_default_data()` fetches a ready-to-use subset of the HC004 semen analysis dataset from HuggingFace on first run — no manual downloads required.
+    `load_default_data()` fetches a ready-to-use subset of the HC004 session of the [HSMV dataset](https://huggingface.co/datasets/DFL-KamLab/HSMV_A-Dataset-of-Human-Sperm-Microscopy-Videos) (Human Sperm Microscopy Videos) from HuggingFace on first run — no manual downloads required.
 
     [:octicons-arrow-right-24: I/O API](api/io.md)
 

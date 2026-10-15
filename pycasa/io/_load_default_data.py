@@ -4,20 +4,20 @@ from pathlib import Path
 from ..utils import _ensure_import
 from ._load_video import load_video
 
-_DATASET_REPO_ID = "DFL-KamLab/HSTLI_A-Dataset-of-Human-Semen-Time-Lapse-Images"
+_DATASET_REPO_ID = "DFL-KamLab/HSMV_A-Dataset-of-Human-Sperm-Microscopy-Videos"
 _DATASET_REPO_TYPE = "dataset"
 _SESSION_REL = Path("sys-casa/rawdata/sub-HC004/ses-01")
 _VIDEO_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.avi"
 _VIDEO_META_NAME = "sys-casa_sub-HC004_ses-01_run-005_video.json"
 _GROUNDTRUTH_DIR_NAME = "sys-casa_sub-HC004_ses-01_run-005_gt"
 _README_NAME = "README.md"
-_HSTLI_UM_PER_PX = 0.24
+_HSMV_UM_PER_PX = 0.24
 # HC004 session CASA metadata (sys-casa dataset): the ejaculate volume is the
 # donor's lab measurement; the chamber depth is the sys-casa acquisition
 # constant. Auto-set (like um_per_px) so the default session yields a complete
 # CASA report -- concentration AND total sperm count -- out of the box.
-_HSTLI_VOLUME_ML = 2.2
-_HSTLI_CHAMBER_DEPTH_UM = 20.7
+_HSMV_VOLUME_ML = 2.2
+_HSMV_CHAMBER_DEPTH_UM = 20.7
 
 
 def _resolve_data_root(path: str | None) -> Path:
@@ -190,17 +190,17 @@ def load_default_data(
         )
 
     if um_per_px is None:
-        um_per_px = _HSTLI_UM_PER_PX
+        um_per_px = _HSMV_UM_PER_PX
         if verbose:
-            print(f"um_per_px automatically set to {_HSTLI_UM_PER_PX}.")
+            print(f"um_per_px automatically set to {_HSMV_UM_PER_PX}.")
     if volume_ml is None:
-        volume_ml = _HSTLI_VOLUME_ML
+        volume_ml = _HSMV_VOLUME_ML
         if verbose:
-            print(f"volume_ml automatically set to {_HSTLI_VOLUME_ML}.")
+            print(f"volume_ml automatically set to {_HSMV_VOLUME_ML}.")
     if chamber_depth_um is None:
-        chamber_depth_um = _HSTLI_CHAMBER_DEPTH_UM
+        chamber_depth_um = _HSMV_CHAMBER_DEPTH_UM
         if verbose:
-            print(f"chamber_depth_um automatically set to {_HSTLI_CHAMBER_DEPTH_UM}.")
+            print(f"chamber_depth_um automatically set to {_HSMV_CHAMBER_DEPTH_UM}.")
 
     return load_video(
         video_path=str(paths["video_path"]),

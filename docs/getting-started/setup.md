@@ -104,4 +104,4 @@ Casa Session
 If this runs without import or runtime errors, your installation is ready for all standard workflows.
 
 !!! note "First-run downloads"
-    `load_default_data()` downloads a subset of the HC004 dataset from HuggingFace Hub on first run and caches it locally. Subsequent calls use the cache and require no network access.
+    `load_default_data()` downloads the HC004 session of the [HSMV dataset](https://huggingface.co/datasets/DFL-KamLab/HSMV_A-Dataset-of-Human-Sperm-Microscopy-Videos) from HuggingFace Hub on first run and caches it locally. Subsequent calls use the cache and require no network access.

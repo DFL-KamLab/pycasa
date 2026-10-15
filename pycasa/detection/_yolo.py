@@ -21,7 +21,7 @@ from ..utils import _warn_yellow
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-HF_REPO_ID   = "DFL-KamLab/HSTLI_A-Dataset-of-Human-Semen-Time-Lapse-Images"
+HF_REPO_ID   = "DFL-KamLab/HSMV_A-Dataset-of-Human-Sperm-Microscopy-Videos"
 HF_REPO_TYPE = "dataset"
 
 YOLOV5_WEIGHTS_DIRNAME = "yolov5-weights"
